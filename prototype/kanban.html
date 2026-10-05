@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bảng công việc</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --surface: #ffffff; --list-bg: #ebecf0;
+    --text: #172b4d; --muted: #5e6c84; --accent: #0079bf;
+    --danger: #eb5a46; --ok: #61bd4f; --warn: #f2d600;
+    --shadow: 0 1px 2px rgba(9,30,66,.25);
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1d2125; --surface: #22272b; --list-bg: #161a1d;
+      --text: #b6c2cf; --muted: #8c9bab; --accent: #579dff;
+      --shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; background: var(--accent); color: #fff;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .hint { font-size: 12px; opacity: .85; }
+  header button {
+    margin-left: auto; border: 0; border-radius: 6px; padding: 6px 12px;
+    background: rgba(255,255,255,.25); color: #fff; cursor: pointer;
+  }
+  #board {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 16px; overflow-x: auto; min-height: calc(100vh - 56px);
+  }
+  .list {
+    background: var(--list-bg); border-radius: var(--radius);
+    width: 280px; flex: 0 0 280px; padding: 8px; box-shadow: var(--shadow);
+  }
+  .list-header { display: flex; align-items: center; padding: 4px 6px; gap: 6px; }
+  .list-header input {
+    flex: 1; border: 0; background: transparent; color: var(--text);
+    font-weight: 700; font-size: 14px; min-width: 0;
+  }
+  .list-header .count {
+    font-size: 12px; color: var(--muted); background: var(--surface);
+    border-radius: 10px; padding: 1px 8px;
+  }
+  .cards { min-height: 8px; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+  .card {
+    background: var(--surface); border-radius: var(--radius); padding: 8px 10px;
+    box-shadow: var(--shadow); cursor: grab;
+  }
+  .card.dragging { opacity: .4; }
+  .card .labels { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+  .card .labels span { width: 36px; height: 8px; border-radius: 4px; display: inline-block; }
+  .card .title { word-break: break-word; }
+  .card .meta { display: flex; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .card .meta .due.overdue { color: #fff; background: var(--danger); border-radius: 4px; padding: 0 6px; }
+  .card .meta .due.done { color: #fff; background: var(--ok); border-radius: 4px; padding: 0 6px; }
+  .cards.drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+  button.add, button.ghost {
+    width: 100%; text-align: left; border: 0; background: transparent;
+    color: var(--muted); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 14px;
+  }
+  button.add:hover, button.ghost:hover { background: rgba(9,30,66,.08); }
+  .add-list {
+    flex: 0 0 280px; background: rgba(9,30,66,.06); border-radius: var(--radius);
+  }
+  /* Modal chi tiết card */
+  dialog {
+    border: 0; border-radius: 12px; background: var(--surface); color: var(--text);
+    width: min(520px, calc(100vw - 32px)); padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,.35);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; font-weight: 600; }
+  dialog input[type=text], dialog input[type=date], dialog textarea {
+    width: 100%; padding: 8px; border-radius: 6px; border: 1px solid rgba(128,128,128,.4);
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  dialog textarea { resize: vertical; min-height: 70px; }
+  .label-picker { display: flex; gap: 6px; }
+  .label-picker button {
+    width: 44px; height: 24px; border-radius: 6px; border: 2px solid transparent; cursor: pointer;
+  }
+  .label-picker button.on { border-color: var(--text); }
+  .checklist-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .checklist-item input[type=text] { flex: 1; }
+  .checklist-item .del { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+  .progress { height: 6px; background: var(--list-bg); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .progress i { display: block; height: 100%; background: var(--ok); }
+  .dialog-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .dialog-actions button {
+    border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-danger { background: transparent; color: var(--danger); margin-left: auto; }
+  @media (max-width: 600px) {
+    #board { padding: 12px 16px; }
+    .list, .add-list { width: 260px; flex-basis: 260px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>📋 Bảng công việc</h1>
+  <span class="hint">Kéo thẻ giữa các cột để đổi trạng thái · dữ liệu lưu trên trình duyệt này</span>
+  <button id="reset">Tạo lại dữ liệu mẫu</button>
+</header>
+<main id="board"></main>
+
+<dialog id="cardDialog">
+  <form method="dialog" id="cardForm">
+    <label>Tiêu đề</label>
+    <input type="text" id="fTitle" required>
+    <label>Mô tả</label>
+    <textarea id="fDesc" placeholder="Bối cảnh, yêu cầu, link tài liệu…"></textarea>
+    <label>Người phụ trách</label>
+    <input type="text" id="fAssignee" placeholder="Tên người phụ trách">
+    <label>Hạn chót</label>
+    <input type="date" id="fDue">
+    <label>Nhãn</label>
+    <div class="label-picker" id="fLabels"></div>
+    <label>Checklist</label>
+    <div id="fChecklist"></div>
+    <button type="button" class="ghost" id="addCheck">+ Thêm việc con</button>
+    <div class="dialog-actions">
+      <button class="btn-primary" value="save">Lưu</button>
+      <button type="button" id="closeDialog">Đóng</button>
+      <button type="button" class="btn-danger" id="deleteCard">Xóa thẻ</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+const LABEL_COLORS = ['#61bd4f', '#f2d600', '#ff9f1a', '#eb5a46', '#c377e0', '#0079bf'];
+const STORAGE_KEY = 'kanban-prototype-v1';
+
+const seed = () => ({
+  lists: [
+    { id: uid(), title: 'Ý tưởng', cards: [
+      card('Nghiên cứu chủ đề video mới', { labels: [4] }),
+      card('Khảo sát bình luận khán giả tuần này', { assignee: 'An' }),
+    ]},
+    { id: uid(), title: 'Đang làm', cards: [
+      card('Viết kịch bản tập 12', { labels: [0], assignee: 'Bình', due: offsetDate(2),
+        checklist: [ci('Dàn ý 3 hồi', true), ci('Bản nháp 1'), ci('Đọc soát')] }),
+    ]},
+    { id: uid(), title: 'Chờ duyệt', cards: [
+      card('Thumbnail tập 11', { labels: [3], assignee: 'Chi', due: offsetDate(-1) }),
+    ]},
+    { id: uid(), title: 'Hoàn thành', cards: [
+      card('Đăng tập 10 + mô tả SEO', { labels: [0, 5], done: true }),
+    ]},
+  ],
+});
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function card(title, extra = {}) {
+  return { id: uid(), title, desc: '', assignee: '', due: '', labels: [], checklist: [], done: false, ...extra };
+}
+function ci(text, checked = false) { return { id: uid(), text, checked }; }
+function offsetDate(days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+let state;
+try {
+  state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || seed();
+} catch { state = seed(); }
+if (!state.lists) state = seed();
+
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+}
+
+const board = document.getElementById('board');
+
+function render() {
+  board.innerHTML = '';
+  for (const list of state.lists) board.appendChild(renderList(list));
+  const addList = document.createElement('div');
+  addList.className = 'add-list';
+  const btn = document.createElement('button');
+  btn.className = 'add';
+  btn.textContent = '+ Thêm cột';
+  btn.onclick = () => {
+    const title = prompt('Tên cột (ví dụ: Đang quay, Hậu kỳ…)');
+    if (title && title.trim()) { state.lists.push({ id: uid(), title: title.trim(), cards: [] }); save(); render(); }
+  };
+  addList.appendChild(btn);
+  board.appendChild(addList);
+}
+
+function renderList(list) {
+  const el = document.createElement('section');
+  el.className = 'list';
+  el.dataset.listId = list.id;
+
+  const header = document.createElement('div');
+  header.className = 'list-header';
+  const nameInput = document.createElement('input');
+  nameInput.value = list.title;
+  nameInput.onchange = () => { list.title = nameInput.value.trim() || list.title; save(); render(); };
+  const count = document.createElement('span');
+  count.className = 'count';
+  count.textContent = list.cards.length;
+  const delBtn = document.createElement('button');
+  delBtn.className = 'del';
+  delBtn.style.cssText = 'border:0;background:transparent;color:var(--muted);cursor:pointer';
+  delBtn.textContent = '✕';
+  delBtn.title = 'Xóa cột';
+  delBtn.onclick = () => {
+    if (list.cards.length === 0 || confirm(`Xóa cột "${list.title}" cùng ${list.cards.length} thẻ?`)) {
+      state.lists = state.lists.filter(l => l.id !== list.id); save(); render();
+    }
+  };
+  header.append(nameInput, count, delBtn);
+
+  const cardsEl = document.createElement('div');
+  cardsEl.className = 'cards';
+  cardsEl.dataset.listId = list.id;
+  for (const c of list.cards) cardsEl.appendChild(renderCard(c, list));
+
+  cardsEl.addEventListener('dragover', e => { e.preventDefault(); cardsEl.classList.add('drag-over'); });
+  cardsEl.addEventListener('dragleave', () => cardsEl.classList.remove('drag-over'));
+  cardsEl.addEventListener('drop', e => {
+    e.preventDefault();
+    cardsEl.classList.remove('drag-over');
+    const cardId = e.dataTransfer.getData('text/plain');
+    moveCard(cardId, list.id, dropIndex(cardsEl, e.clientY));
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add';
+  addBtn.textContent = '+ Thêm thẻ';
+  addBtn.onclick = () => {
+    const title = prompt('Nội dung công việc?');
+    if (title && title.trim()) { list.cards.push(card(title.trim())); save(); render(); }
+  };
+
+  el.append(header, cardsEl, addBtn);
+  return el;
+}
+
+function renderCard(c, list) {
+  const el = document.createElement('article');
+  el.className = 'card';
+  el.draggable = true;
+  el.dataset.cardId = c.id;
+
+  if (c.labels.length) {
+    const labels = document.createElement('div');
+    labels.className = 'labels';
+    for (const i of c.labels) {
+      const s = document.createElement('span');
+      s.style.background = LABEL_COLORS[i];
+      labels.appendChild(s);
+    }
+    el.appendChild(labels);
+  }
+
+  const title = document.createElement('div');
+  title.className = 'title';
+  title.textContent = c.title;
+  el.appendChild(title);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  if (c.due) {
+    const due = document.createElement('span');
+    const isLast = list === state.lists[state.lists.length - 1];
+    due.className = 'due' + (c.done || isLast ? ' done' : (c.due < new Date().toISOString().slice(0, 10) ? ' overdue' : ''));
+    due.textContent = '🕐 ' + c.due.split('-').reverse().join('/');
+    meta.appendChild(due);
+  }
+  if (c.checklist.length) {
+    const done = c.checklist.filter(i => i.checked).length;
+    const chk = document.createElement('span');
+    chk.textContent = `☑ ${done}/${c.checklist.length}`;
+    meta.appendChild(chk);
+  }
+  if (c.assignee) {
+    const who = document.createElement('span');
+    who.textContent = '👤 ' + c.assignee;
+    meta.appendChild(who);
+  }
+  if (meta.children.length) el.appendChild(meta);
+
+  if (c.checklist.length) {
+    const done = c.checklist.filter(i => i.checked).length;
+    const bar = document.createElement('div');
+    bar.className = 'progress';
+    const fill = document.createElement('i');
+    fill.style.width = Math.round(done / c.checklist.length * 100) + '%';
+    bar.appendChild(fill);
+    el.appendChild(bar);
+  }
+
+  el.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', c.id);
+    el.classList.add('dragging');
+  });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  el.addEventListener('click', () => openCard(c));
+  return el;
+}
+
+function dropIndex(cardsEl, y) {
+  const cards = [...cardsEl.querySelectorAll('.card:not(.dragging)')];
+  for (let i = 0; i < cards.length; i++) {
+    const r = cards[i].getBoundingClientRect();
+    if (y < r.top + r.height / 2) return i;
+  }
+  return cards.length;
+}
+
+function moveCard(cardId, toListId, index) {
+  let moved = null;
+  for (const l of state.lists) {
+    const i = l.cards.findIndex(c => c.id === cardId);
+    if (i !== -1) { moved = l.cards.splice(i, 1)[0]; break; }
+  }
+  if (!moved) return;
+  const target = state.lists.find(l => l.id === toListId);
+  target.cards.splice(index, 0, moved);
+  save(); render();
+}
+
+/* ---- Chi tiết card ---- */
+const dialog = document.getElementById('cardDialog');
+let editing = null;
+
+function openCard(c) {
+  editing = c;
+  document.getElementById('fTitle').value = c.title;
+  document.getElementById('fDesc').value = c.desc;
+  document.getElementById('fAssignee').value = c.assignee;
+  document.getElementById('fDue').value = c.due;
+  const labelsEl = document.getElementById('fLabels');
+  labelsEl.innerHTML = '';
+  LABEL_COLORS.forEach((color, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.style.background = color;
+    b.className = c.labels.includes(i) ? 'on' : '';
+    b.onclick = () => b.classList.toggle('on');
+    b.dataset.index = i;
+    labelsEl.appendChild(b);
+  });
+  renderChecklistEditor(c.checklist.map(i => ({ ...i })));
+  dialog.showModal();
+}
+
+let editChecklist = [];
+function renderChecklistEditor(items) {
+  editChecklist = items;
+  const wrap = document.getElementById('fChecklist');
+  wrap.innerHTML = '';
+  for (const item of editChecklist) {
+    const row = document.createElement('div');
+    row.className = 'checklist-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = item.checked;
+    cb.onchange = () => item.checked = cb.checked;
+    const txt = document.createElement('input');
+    txt.type = 'text';
+    txt.value = item.text;
+    txt.oninput = () => item.text = txt.value;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.textContent = '✕';
+    del.onclick = () => renderChecklistEditor(editChecklist.filter(i => i !== item));
+    row.append(cb, txt, del);
+    wrap.appendChild(row);
+  }
+}
+document.getElementById('addCheck').onclick = () => renderChecklistEditor([...editChecklist, ci('')]);
+
+document.getElementById('cardForm').addEventListener('submit', () => {
+  if (!editing) return;
+  editing.title = document.getElementById('fTitle').value.trim() || editing.title;
+  editing.desc = document.getElementById('fDesc').value;
+  editing.assignee = document.getElementById('fAssignee').value.trim();
+  editing.due = document.getElementById('fDue').value;
+  editing.labels = [...document.querySelectorAll('#fLabels button.on')].map(b => +b.dataset.index);
+  editing.checklist = editChecklist.filter(i => i.text.trim());
+  save(); render();
+});
+document.getElementById('closeDialog').onclick = () => dialog.close();
+document.getElementById('deleteCard').onclick = () => {
+  if (!editing || !confirm('Xóa thẻ này?')) return;
+  for (const l of state.lists) l.cards = l.cards.filter(c => c.id !== editing.id);
+  dialog.close(); save(); render();
+};
+
+document.getElementById('reset').onclick = () => {
+  if (confirm('Xóa toàn bộ dữ liệu hiện tại và tạo lại dữ liệu mẫu?')) {
+    state = seed(); save(); render();
+  }
+};
+
+render();
+</script>
+</body>
+</html>
