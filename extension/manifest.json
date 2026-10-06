@@ -4,7 +4,12 @@
   "version": "0.1.0",
   "description": "Gợi ý câu trả lời phản biện tự nhiên cho comment trái chiều dưới video YouTube. AI chỉ gợi ý — bạn tự chỉnh sửa và tự đăng.",
   "permissions": ["storage", "activeTab"],
-  "host_permissions": ["https://api.anthropic.com/*"],
+  "host_permissions": [
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.anthropic.com/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "scripts": ["background.js"]

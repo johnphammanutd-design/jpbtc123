@@ -56,15 +56,33 @@ extension/
 
 Với comment troll thuần túy, AI sẽ khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ.
 
+## Chi phí — so sánh API (khảo sát 10/2026)
+
+Mỗi lần gợi ý tốn khoảng **1.200 token input + 250 token output**. Chi phí ước tính
+cho **1.000 lần gợi ý** theo từng API (USD, giá /1M token input|output):
+
+| API | Giá input | Giá output | ~1.000 lần gợi ý |
+|---|---|---|---|
+| **OpenAI GPT-5 nano** (mặc định) | $0.05 | $0.40 | **~$0.16** |
+| Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | ~$0.22 |
+| DeepSeek chat (v4-flash) | $0.14 | $0.28 | ~$0.24 |
+| Claude Haiku 4.5 | $1.00 | $5.00 | ~$2.45 |
+| Claude Sonnet 5.5 | $2.00 | $10.00 | ~$4.90 |
+| Claude Opus 5.5 | $4.00 | $20.00 | ~$9.80 |
+
+GPT-5 nano được chọn làm mặc định vì rẻ nhất cho đúng workload này. Nếu thấy câu
+gợi ý tiếng Việt chưa đủ tự nhiên, nâng dần lên Gemini Flash-Lite / DeepSeek
+(gần như cùng giá) hoặc Claude (đắt hơn nhưng chất lượng văn tốt nhất) trong
+trang Cài đặt — đổi nhà cung cấp chỉ là một dropdown, key của từng nhà được lưu
+riêng.
+
 ## Ghi chú kỹ thuật
 
-- Gọi API qua `fetch` từ background script với `host_permissions` cho
-  `api.anthropic.com` nên không vướng CORS; không cần bundler hay npm.
-- Request bật **server-side fallback** (`fallbacks: "default"` + beta header):
-  nếu safety classifier của model chính từ chối một request lành tính, API tự
-  thử model dự phòng thay vì trả lỗi.
-- Model mặc định: `claude-opus-5-5`; có thể đổi sang `claude-sonnet-5-5` (rẻ hơn)
-  trong trang cài đặt.
+- Gọi API qua `fetch` từ background script với `host_permissions` cho đúng 4
+  domain API nên không vướng CORS; không cần bundler hay npm.
+- Hỗ trợ 4 nhà cung cấp: OpenAI, Google Gemini, DeepSeek, Anthropic Claude.
+  Mỗi nhà một API key, lưu riêng trong `storage.local`, chỉ gửi tới đúng API đó.
+- Cấu hình cũ (bản chỉ có Claude) được tự chuyển sang dạng mới khi mở lại.
 - Selector DOM của YouTube thay đổi theo thời gian; content script hỗ trợ cả
   `ytd-comment-view-model` (mới) lẫn `ytd-comment-renderer` (cũ) và dùng
   MutationObserver để bắt comment tải thêm khi cuộn.

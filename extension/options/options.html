@@ -66,16 +66,22 @@
 <body>
   <h1>Trợ lý phản biện comment — Cài đặt</h1>
 
-  <label for="apiKey">Claude API key</label>
-  <p class="hint">Lấy tại console.anthropic.com → API Keys. Key chỉ lưu trong trình duyệt của bạn (storage.local), không gửi đi đâu ngoài api.anthropic.com.</p>
-  <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
+  <label for="provider">Nhà cung cấp AI</label>
+  <p class="hint">Mặc định là OpenAI GPT-5 nano — rẻ nhất thị trường (10/2026): khoảng $0.16 cho mỗi 1.000 lần gợi ý.</p>
+  <select id="provider">
+    <option value="openai">OpenAI (rẻ nhất)</option>
+    <option value="google">Google Gemini</option>
+    <option value="deepseek">DeepSeek</option>
+    <option value="anthropic">Anthropic Claude (chất lượng cao nhất)</option>
+  </select>
+
+  <label for="apiKey">API key</label>
+  <p class="hint" id="keyHint"></p>
+  <input id="apiKey" type="password" placeholder="Dán API key của nhà cung cấp đang chọn" autocomplete="off" />
 
   <label for="model">Model</label>
-  <p class="hint">Opus 5.5 cho chất lượng cao nhất; Sonnet 5.5 nhanh và rẻ hơn.</p>
-  <select id="model">
-    <option value="claude-opus-5-5">Claude Opus 5.5 (mặc định)</option>
-    <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
-  </select>
+  <p class="hint">Giá ghi theo USD cho mỗi 1 triệu token (input/output), cập nhật 10/2026.</p>
+  <select id="model"></select>
 
   <label for="defaultTone">Giọng ưu tiên</label>
   <p class="hint">AI vẫn đưa 3 phương án, nhưng sẽ chăm chút nhất cho giọng này.</p>

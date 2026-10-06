@@ -1,11 +1,34 @@
-// Background script: nơi duy nhất gọi Claude API.
+// Background script: nơi duy nhất gọi API của nhà cung cấp AI.
 // Content script gửi message { type: "suggest", payload } → trả về danh sách gợi ý.
-
-const API_URL = "https://api.anthropic.com/v1/messages";
-const API_VERSION = "2023-06-01";
-const DEFAULT_MODEL = "claude-opus-5-5";
+// Hỗ trợ nhiều nhà cung cấp; mặc định là GPT-5 nano (rẻ nhất thị trường 10/2026).
 
 const ext = typeof browser !== "undefined" ? browser : chrome;
+
+const DEFAULT_PROVIDER = "openai";
+
+// Giá tham khảo 10/2026 (USD / 1M token input|output) ghi trong README.
+const PROVIDERS = {
+  openai: {
+    defaultModel: "gpt-5-nano",
+    models: ["gpt-5-nano", "gpt-5-mini"],
+    url: "https://api.openai.com/v1/chat/completions"
+  },
+  google: {
+    defaultModel: "gemini-2.5-flash-lite",
+    models: ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
+    url: "https://generativelanguage.googleapis.com/v1beta/models"
+  },
+  deepseek: {
+    defaultModel: "deepseek-chat",
+    models: ["deepseek-chat"],
+    url: "https://api.deepseek.com/chat/completions"
+  },
+  anthropic: {
+    defaultModel: "claude-haiku-4-5",
+    models: ["claude-haiku-4-5", "claude-sonnet-5-5", "claude-opus-5-5"],
+    url: "https://api.anthropic.com/v1/messages"
+  }
+};
 
 const SYSTEM_PROMPT = `Bạn là trợ lý soạn câu trả lời comment cho chủ kênh video tiếng Việt.
 Nhiệm vụ: đọc một comment dưới video và đề xuất các phương án trả lời để CHỦ KÊNH tự chọn, tự sửa và tự đăng.
@@ -57,75 +80,178 @@ function extractJson(text) {
 
 async function getSettings() {
   const stored = await ext.storage.local.get({
-    apiKey: "",
-    model: DEFAULT_MODEL,
+    provider: DEFAULT_PROVIDER,
+    model: "",
+    apiKeys: {},
     defaultTone: "",
-    voiceProfile: ""
+    voiceProfile: "",
+    apiKey: "" // khóa Anthropic từ phiên bản cũ của extension
   });
+  // Chuyển cấu hình cũ (chỉ có Anthropic) sang dạng đa nhà cung cấp.
+  if (stored.apiKey && !stored.apiKeys.anthropic) {
+    stored.apiKeys.anthropic = stored.apiKey;
+    await ext.storage.local.set({ apiKeys: stored.apiKeys });
+  }
   return stored;
 }
 
-async function suggestReplies(payload) {
-  const settings = await getSettings();
-  if (!settings.apiKey) {
-    return {
-      ok: false,
-      error: "Chưa có API key. Mở trang Cài đặt của extension để nhập Claude API key."
-    };
+async function readHttpError(res) {
+  let detail = `HTTP ${res.status}`;
+  try {
+    const err = await res.json();
+    detail = err?.error?.message || err?.message || detail;
+  } catch (_) {
+    /* giữ detail mặc định */
   }
+  return detail;
+}
 
-  const body = {
-    model: settings.model || DEFAULT_MODEL,
-    max_tokens: 2048,
-    system: SYSTEM_PROMPT,
-    fallbacks: "default",
-    messages: [{ role: "user", content: buildUserPrompt(payload, settings) }]
-  };
+// ---- Từng nhà cung cấp trả về chuỗi văn bản thô của model ----
 
-  const res = await fetch(API_URL, {
+async function callOpenAICompatible(url, apiKey, model, userPrompt, extraHeaders) {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": settings.apiKey,
-      "anthropic-version": API_VERSION,
-      "anthropic-beta": "server-side-fallback-2026-07-01"
+      Authorization: `Bearer ${apiKey}`,
+      ...(extraHeaders || {})
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: 2048,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt }
+      ]
+    })
   });
-
-  if (!res.ok) {
-    let detail = `HTTP ${res.status}`;
-    try {
-      const err = await res.json();
-      if (err?.error?.message) detail = err.error.message;
-    } catch (_) {
-      /* giữ detail mặc định */
-    }
-    return { ok: false, error: `Gọi API thất bại: ${detail}` };
-  }
-
+  if (!res.ok) throw new Error(await readHttpError(res));
   const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Phản hồi rỗng từ API.");
+  return text;
+}
 
+// DeepSeek dùng API tương thích OpenAI nhưng nhận `max_tokens`.
+async function callDeepSeek(apiKey, model, userPrompt) {
+  const res = await fetch(PROVIDERS.deepseek.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 2048,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt }
+      ]
+    })
+  });
+  if (!res.ok) throw new Error(await readHttpError(res));
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Phản hồi rỗng từ API.");
+  return text;
+}
+
+async function callGoogle(apiKey, model, userPrompt) {
+  const url = `${PROVIDERS.google.url}/${encodeURIComponent(model)}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      generationConfig: { maxOutputTokens: 2048 }
+    })
+  });
+  if (!res.ok) throw new Error(await readHttpError(res));
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p) => p.text || "")
+    .join("");
+  if (!text) throw new Error("Phản hồi rỗng từ API.");
+  return text;
+}
+
+async function callAnthropic(apiKey, model, userPrompt) {
+  const res = await fetch(PROVIDERS.anthropic.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 2048,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }]
+    })
+  });
+  if (!res.ok) throw new Error(await readHttpError(res));
+  const data = await res.json();
   if (data.stop_reason === "refusal") {
-    return {
-      ok: false,
-      error: "AI từ chối trả lời comment này. Hãy tự soạn tay hoặc bỏ qua."
-    };
+    throw new Error("AI từ chối trả lời comment này. Hãy tự soạn tay hoặc bỏ qua.");
   }
-
   const text = (data.content || [])
     .filter((block) => block.type === "text")
     .map((block) => block.text)
     .join("\n");
+  if (!text) throw new Error("Phản hồi rỗng từ API.");
+  return text;
+}
+
+async function suggestReplies(payload) {
+  const settings = await getSettings();
+  const provider = PROVIDERS[settings.provider] ? settings.provider : DEFAULT_PROVIDER;
+  const apiKey = settings.apiKeys?.[provider] || "";
+  // Model đã lưu phải thuộc nhà cung cấp đang chọn, không thì dùng mặc định.
+  const model = PROVIDERS[provider].models.includes(settings.model)
+    ? settings.model
+    : PROVIDERS[provider].defaultModel;
+
+  if (!apiKey) {
+    return {
+      ok: false,
+      error:
+        "Chưa có API key cho nhà cung cấp đang chọn. Mở trang Cài đặt của extension để nhập."
+    };
+  }
+
+  const userPrompt = buildUserPrompt(payload, settings);
 
   try {
+    let text;
+    switch (provider) {
+      case "openai":
+        text = await callOpenAICompatible(PROVIDERS.openai.url, apiKey, model, userPrompt);
+        break;
+      case "deepseek":
+        text = await callDeepSeek(apiKey, model, userPrompt);
+        break;
+      case "google":
+        text = await callGoogle(apiKey, model, userPrompt);
+        break;
+      case "anthropic":
+        text = await callAnthropic(apiKey, model, userPrompt);
+        break;
+      default:
+        throw new Error(`Nhà cung cấp không hỗ trợ: ${provider}`);
+    }
+
     const parsed = extractJson(text);
     if (!Array.isArray(parsed.goi_y) || parsed.goi_y.length === 0) {
       throw new Error("Thiếu danh sách gợi ý.");
     }
     return { ok: true, result: parsed };
   } catch (e) {
-    return { ok: false, error: `Không đọc được phản hồi của AI: ${e.message}` };
+    return { ok: false, error: `Gọi API thất bại: ${e.message}` };
   }
 }
 
