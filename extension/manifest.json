@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Trợ lý phản biện comment",
+  "version": "0.1.0",
+  "description": "Gợi ý câu trả lời phản biện tự nhiên cho comment trái chiều dưới video YouTube. AI chỉ gợi ý — bạn tự chỉnh sửa và tự đăng.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://api.anthropic.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["content/youtube.js"],
+      "css": ["content/youtube.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "Trợ lý phản biện comment"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tro-ly-phan-bien@jpbtc123.example",
+      "strict_min_version": "121.0"
+    }
+  }
+}

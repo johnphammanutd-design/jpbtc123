@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cài đặt — Trợ lý phản biện comment</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --accent: #3ea6ff;
+    }
+    body {
+      max-width: 620px;
+      margin: 40px auto;
+      padding: 0 16px;
+      font-family: "Roboto", "Segoe UI", Arial, sans-serif;
+      line-height: 1.6;
+    }
+    h1 { font-size: 20px; }
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 18px 0 4px;
+    }
+    .hint {
+      font-size: 12px;
+      opacity: 0.7;
+      margin: 2px 0 6px;
+    }
+    input[type="password"],
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid rgba(128, 128, 128, 0.5);
+      border-radius: 8px;
+      font: inherit;
+      background: transparent;
+      color: inherit;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button {
+      margin-top: 22px;
+      padding: 8px 24px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #status { margin-left: 12px; font-size: 13px; color: var(--accent); }
+    .box {
+      margin-top: 24px;
+      padding: 10px 14px;
+      border-left: 3px solid var(--accent);
+      background: rgba(62, 166, 255, 0.08);
+      font-size: 13px;
+      border-radius: 0 8px 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Trợ lý phản biện comment — Cài đặt</h1>
+
+  <label for="apiKey">Claude API key</label>
+  <p class="hint">Lấy tại console.anthropic.com → API Keys. Key chỉ lưu trong trình duyệt của bạn (storage.local), không gửi đi đâu ngoài api.anthropic.com.</p>
+  <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
+
+  <label for="model">Model</label>
+  <p class="hint">Opus 5.5 cho chất lượng cao nhất; Sonnet 5.5 nhanh và rẻ hơn.</p>
+  <select id="model">
+    <option value="claude-opus-5-5">Claude Opus 5.5 (mặc định)</option>
+    <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+  </select>
+
+  <label for="defaultTone">Giọng ưu tiên</label>
+  <p class="hint">AI vẫn đưa 3 phương án, nhưng sẽ chăm chút nhất cho giọng này.</p>
+  <select id="defaultTone">
+    <option value="">— Không ưu tiên —</option>
+    <option value="phản biện sắc bén, có lý lẽ">Phản biện sắc bén</option>
+    <option value="hài hước, dí dỏm">Hài hước</option>
+    <option value="lịch sự, thiện chí">Lịch sự</option>
+  </select>
+
+  <label for="voiceProfile">Hồ sơ giọng kênh</label>
+  <p class="hint">Mô tả cách bạn hay nói chuyện với người xem để AI viết đúng chất kênh. Ví dụ: "Xưng 'mình', gọi người xem là 'anh em', hay dùng từ 'ok la', giọng thoải mái kiểu miền Nam."</p>
+  <textarea id="voiceProfile" placeholder="Xưng hô, từ hay dùng, phong cách..."></textarea>
+
+  <button id="save">Lưu cài đặt</button><span id="status"></span>
+
+  <div class="box">
+    Nhắc lại cách hoạt động: AI chỉ <b>gợi ý</b> câu trả lời. Bạn luôn là người đọc lại,
+    chỉnh sửa và tự bấm đăng từ tài khoản của mình. Extension không bao giờ tự đăng comment.
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
