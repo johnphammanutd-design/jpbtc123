@@ -1,0 +1,7 @@
+# Caddy reverse proxy cho task.kairetic.com
+# Dùng khi cổng 80/443 trên VPS còn trống (chưa có web server khác).
+# Caddy tự xin và tự gia hạn chứng chỉ HTTPS (Let's Encrypt).
+
+task.kairetic.com {
+    reverse_proxy localhost:3000
+}

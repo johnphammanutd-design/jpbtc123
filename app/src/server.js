@@ -10,10 +10,55 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
 const app = express();
+app.set('trust proxy', 1); // chạy sau reverse proxy (Caddy/Nginx) — lấy đúng IP người dùng
 app.use(express.json({ limit: '1mb' }));
+
+// Security headers cơ bản cho triển khai nội bộ
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy':
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'",
+  });
+  next();
+});
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+/* ---------- Chặn dò mật khẩu: 5 lần sai → khóa IP+tài khoản 15 phút ---------- */
+const loginFails = new Map(); // key "ip|username" -> { fails, until }
+const FAIL_LIMIT = 5;
+const LOCK_MS = 15 * 60 * 1000;
+
+function loginThrottle(req, res, next) {
+  const key = `${req.ip}|${String(req.body?.username || '').trim().toLowerCase()}`;
+  const entry = loginFails.get(key);
+  if (entry && entry.until > Date.now()) {
+    const mins = Math.ceil((entry.until - Date.now()) / 60000);
+    return res.status(429).json({ error: `Sai quá ${FAIL_LIMIT} lần. Thử lại sau ${mins} phút.` });
+  }
+  req.loginKey = key;
+  next();
+}
+
+function recordLoginFail(key) {
+  const entry = loginFails.get(key) || { fails: 0, until: 0 };
+  entry.fails += 1;
+  if (entry.fails >= FAIL_LIMIT) {
+    entry.until = Date.now() + LOCK_MS;
+    entry.fails = 0;
+  }
+  loginFails.set(key, entry);
+  if (loginFails.size > 10000) loginFails.clear(); // chống phình bộ nhớ
+}
+
 /* ---------- Xác thực ---------- */
+
+// Phiên đăng nhập tự hết hạn sau 30 ngày (đổi bằng SESSION_TTL_DAYS)
+const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 30);
 
 function getSessionUser(token) {
   if (!token) return null;
@@ -21,7 +66,13 @@ function getSessionUser(token) {
     SELECT u.id, u.username, u.name, u.is_admin FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND u.disabled = 0
-  `).get(token) || null;
+      AND s.created_at > datetime('now', ?)
+  `).get(token, `-${SESSION_TTL_DAYS} days`) || null;
+}
+
+// Dọn phiên hết hạn mỗi lần có đăng nhập mới
+function pruneSessions() {
+  db.prepare("DELETE FROM sessions WHERE created_at <= datetime('now', ?)").run(`-${SESSION_TTL_DAYS} days`);
 }
 
 function auth(req, res, next) {
@@ -39,12 +90,15 @@ function adminOnly(req, res, next) {
   next();
 }
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', loginThrottle, (req, res) => {
   const { username, password } = req.body || {};
   const row = db.prepare('SELECT * FROM users WHERE username = ? AND disabled = 0').get(String(username || '').trim());
   if (!row || !verifyPassword(String(password || ''), row.password_hash)) {
+    recordLoginFail(req.loginKey);
     return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
   }
+  loginFails.delete(req.loginKey);
+  pruneSessions();
   const token = crypto.randomBytes(32).toString('hex');
   db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, row.id);
   res.json({ token, user: { id: row.id, username: row.username, name: row.name, is_admin: !!row.is_admin } });
