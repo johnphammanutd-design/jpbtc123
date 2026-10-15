@@ -56,6 +56,20 @@ extension/
 
 Với comment troll thuần túy, AI sẽ khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ.
 
+### Quét comment trái chiều
+
+Trên trang xem video có nút nổi **🔍 Quét comment trái chiều** (góc phải dưới):
+bấm một lần, extension phân loại tối đa 30 comment đang hiển thị trong một lần
+gọi API duy nhất, gắn badge màu cho từng comment (xanh = tích cực, vàng = góp ý
+có lý, đỏ = hiểu sai / chê vô căn cứ / troll) và viền đỏ các comment nên trả
+lời trước. Muốn quét thêm thì cuộn tải thêm comment rồi bấm quét lại.
+
+### Lịch sử câu đã dùng
+
+Mỗi lần bạn bấm **Chép** hoặc **Điền vào ô trả lời**, câu đó được ghi vào lịch
+sử (30 câu gần nhất, lưu cục bộ). Các lần gợi ý sau, AI được nhắc tránh lặp lại
+khuôn câu đã dùng — comment trả lời nghe đỡ "một màu".
+
 ## Chi phí — so sánh API (khảo sát 10/2026)
 
 Mỗi lần gợi ý tốn khoảng **1.200 token input + 250 token output**. Chi phí ước tính
@@ -63,18 +77,19 @@ cho **1.000 lần gợi ý** theo từng API (USD, giá /1M token input|output):
 
 | API | Giá input | Giá output | ~1.000 lần gợi ý |
 |---|---|---|---|
-| **OpenAI GPT-5 nano** (mặc định) | $0.05 | $0.40 | **~$0.16** |
+| **Claude Opus 5.5** (mặc định) | $4.00 | $20.00 | ~$9.80 |
+| Claude Sonnet 5.5 | $2.00 | $10.00 | ~$4.90 |
+| Claude Haiku 4.5 | $1.00 | $5.00 | ~$2.45 |
+| OpenAI GPT-5 nano | $0.05 | $0.40 | **~$0.16** |
 | Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | ~$0.22 |
 | DeepSeek chat (v4-flash) | $0.14 | $0.28 | ~$0.24 |
-| Claude Haiku 4.5 | $1.00 | $5.00 | ~$2.45 |
-| Claude Sonnet 5.5 | $2.00 | $10.00 | ~$4.90 |
-| Claude Opus 5.5 | $4.00 | $20.00 | ~$9.80 |
 
-GPT-5 nano được chọn làm mặc định vì rẻ nhất cho đúng workload này. Nếu thấy câu
-gợi ý tiếng Việt chưa đủ tự nhiên, nâng dần lên Gemini Flash-Lite / DeepSeek
-(gần như cùng giá) hoặc Claude (đắt hơn nhưng chất lượng văn tốt nhất) trong
-trang Cài đặt — đổi nhà cung cấp chỉ là một dropdown, key của từng nhà được lưu
-riêng.
+Mặc định là **Claude Opus 5.5**: tài khoản có API credit hàng tháng của Anthropic
+(ví dụ $200/tháng kèm gói Max) thì dùng Claude trong hạn mức đó không tốn thêm
+tiền — $200 tương đương ~20.000 lần gợi ý Opus 5.5 hoặc ~40.000 lần Sonnet 5.5
+mỗi tháng. Không có credit và muốn rẻ nhất tuyệt đối: chọn OpenAI GPT-5 nano
+trong trang Cài đặt — đổi nhà cung cấp chỉ là một dropdown, key của từng nhà
+được lưu riêng.
 
 ## Ghi chú kỹ thuật
 

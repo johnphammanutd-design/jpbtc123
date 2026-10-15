@@ -15,11 +15,15 @@
   };
 
   const CLASS_LABELS = {
+    tich_cuc: "Tích cực",
     gop_y_co_ly: "Góp ý có lý",
     hieu_sai_noi_dung: "Hiểu sai nội dung",
     che_vo_can_cu: "Chê vô căn cứ",
     troll: "Troll / khiêu khích"
   };
+
+  // Các loại cần ưu tiên trả lời khi quét.
+  const NEGATIVE_CLASSES = ["gop_y_co_ly", "hieu_sai_noi_dung", "che_vo_can_cu", "troll"];
 
   function getVideoContext() {
     const titleEl =
@@ -103,15 +107,21 @@
       row.appendChild(el("div", "tlpb-text", item.noi_dung));
 
       const actions = el("div", "tlpb-actions");
+      // Ghi lại câu người dùng chọn để các lần gợi ý sau không lặp khuôn câu.
+      const rememberUsed = () => {
+        ext.runtime.sendMessage({ type: "markUsed", payload: { text: item.noi_dung } });
+      };
       const copyBtn = el("button", "tlpb-action", "Chép");
       copyBtn.addEventListener("click", async () => {
         await navigator.clipboard.writeText(item.noi_dung);
+        rememberUsed();
         copyBtn.textContent = "Đã chép ✓";
         setTimeout(() => (copyBtn.textContent = "Chép"), 1500);
       });
       const fillBtn = el("button", "tlpb-action tlpb-fill", "Điền vào ô trả lời");
       fillBtn.addEventListener("click", async () => {
         const ok = await fillReplyBox(commentEl, item.noi_dung);
+        if (ok) rememberUsed();
         fillBtn.textContent = ok ? "Đã điền — sửa rồi tự đăng nhé" : "Không tìm thấy ô trả lời";
         setTimeout(
           () => (fillBtn.textContent = "Điền vào ô trả lời"),
@@ -184,11 +194,113 @@
     toolbar.appendChild(button);
   }
 
+  // ---- Quét & đánh dấu comment trái chiều ----
+
+  const SCAN_LIMIT = 30;
+
+  function allCommentEls() {
+    return Array.from(
+      document.querySelectorAll("ytd-comment-view-model, ytd-comment-renderer")
+    );
+  }
+
+  function setBadge(commentEl, phanLoai) {
+    let badge = commentEl.querySelector(":scope .tlpb-badge");
+    if (!badge) {
+      const header = commentEl.querySelector("#header-author") || commentEl;
+      badge = el("span", "tlpb-badge");
+      header.appendChild(badge);
+    }
+    badge.textContent = CLASS_LABELS[phanLoai] || phanLoai;
+    badge.dataset.tlpbClass = phanLoai;
+    commentEl.classList.toggle(
+      "tlpb-negative",
+      NEGATIVE_CLASSES.includes(phanLoai)
+    );
+  }
+
+  function showToast(message) {
+    let toast = document.querySelector(".tlpb-toast");
+    if (!toast) {
+      toast = el("div", "tlpb-toast");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("tlpb-toast-visible");
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(
+      () => toast.classList.remove("tlpb-toast-visible"),
+      4000
+    );
+  }
+
+  async function runScan(scanBtn) {
+    const els = allCommentEls().slice(0, SCAN_LIMIT);
+    const comments = [];
+    els.forEach((commentEl, i) => {
+      const data = getCommentData(commentEl);
+      if (data.commentText) {
+        commentEl.dataset.tlpbScanId = String(i);
+        comments.push({ id: i, text: data.commentText, author: data.author });
+      }
+    });
+    if (comments.length === 0) {
+      showToast("Chưa thấy comment nào — kéo xuống phần bình luận rồi quét lại.");
+      return;
+    }
+
+    scanBtn.disabled = true;
+    scanBtn.textContent = `Đang quét ${comments.length} comment…`;
+    try {
+      const response = await ext.runtime.sendMessage({
+        type: "classify",
+        payload: { comments, videoTitle: getVideoContext().videoTitle }
+      });
+      if (!response?.ok) {
+        showToast(response?.error || "Quét thất bại.");
+        return;
+      }
+      let negative = 0;
+      for (const item of response.result) {
+        const commentEl = document.querySelector(
+          `[data-tlpb-scan-id="${CSS.escape(String(item.id))}"]`
+        );
+        if (!commentEl) continue;
+        setBadge(commentEl, item.phan_loai);
+        if (NEGATIVE_CLASSES.includes(item.phan_loai)) negative++;
+      }
+      showToast(
+        negative > 0
+          ? `Đã quét ${comments.length} comment — ${negative} comment trái chiều được đánh dấu đỏ, nên trả lời trước.`
+          : `Đã quét ${comments.length} comment — không thấy comment trái chiều. 👍`
+      );
+    } catch (e) {
+      showToast(`Lỗi khi quét: ${e.message}`);
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = "🔍 Quét comment trái chiều";
+    }
+  }
+
+  function ensureScanButton() {
+    // Chỉ hiện khi trang có khu bình luận (trang xem video).
+    const hasComments = document.querySelector("ytd-comments#comments");
+    let scanBtn = document.querySelector(".tlpb-scan-btn");
+    if (!hasComments) {
+      if (scanBtn) scanBtn.remove();
+      return;
+    }
+    if (scanBtn) return;
+    scanBtn = el("button", "tlpb-scan-btn", "🔍 Quét comment trái chiều");
+    scanBtn.type = "button";
+    scanBtn.addEventListener("click", () => runScan(scanBtn));
+    document.body.appendChild(scanBtn);
+  }
+
   function scanComments() {
     // YouTube dùng ytd-comment-view-model (mới) hoặc ytd-comment-renderer (cũ).
-    document
-      .querySelectorAll("ytd-comment-view-model, ytd-comment-renderer")
-      .forEach(injectButton);
+    allCommentEls().forEach(injectButton);
+    ensureScanButton();
   }
 
   const observer = new MutationObserver(() => {

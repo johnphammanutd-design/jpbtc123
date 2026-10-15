@@ -67,12 +67,12 @@
   <h1>Trợ lý phản biện comment — Cài đặt</h1>
 
   <label for="provider">Nhà cung cấp AI</label>
-  <p class="hint">Mặc định là OpenAI GPT-5 nano — rẻ nhất thị trường (10/2026): khoảng $0.16 cho mỗi 1.000 lần gợi ý.</p>
+  <p class="hint">Mặc định là Anthropic Claude — nếu tài khoản bạn có API credit hàng tháng thì dùng Claude gần như miễn phí trong hạn mức. Không có credit và muốn rẻ nhất: chọn OpenAI GPT-5 nano (~$0.16 cho 1.000 lần gợi ý).</p>
   <select id="provider">
-    <option value="openai">OpenAI (rẻ nhất)</option>
+    <option value="anthropic">Anthropic Claude (mặc định — chất lượng cao nhất)</option>
+    <option value="openai">OpenAI (rẻ nhất nếu trả tiền túi)</option>
     <option value="google">Google Gemini</option>
     <option value="deepseek">DeepSeek</option>
-    <option value="anthropic">Anthropic Claude (chất lượng cao nhất)</option>
   </select>
 
   <label for="apiKey">API key</label>
