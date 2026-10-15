@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -187,6 +188,73 @@ function notifyBoard(boardId) {
   if (boardId) broadcast(boardId, { type: 'board-changed', boardId });
 }
 
+/* ---------- Thông báo cá nhân (chuông 🔔) ---------- */
+
+// Tạo thông báo cho userId (bỏ qua khi tự mình gây ra) và đẩy realtime
+function pushNotification(userId, actorId, type, boardId, cardId, data = {}) {
+  if (!userId || userId === actorId) return;
+  db.prepare(`INSERT INTO notifications (user_id, actor_id, type, board_id, card_id, data)
+              VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(userId, actorId, type, boardId, cardId, JSON.stringify(data));
+  broadcastUser(userId, { type: 'notification' });
+}
+
+const cardMemberIds = cardId =>
+  db.prepare('SELECT user_id FROM card_members WHERE card_id = ?').all(cardId).map(r => r.user_id);
+
+// @mention trong bình luận: @username (không dấu cách)
+function mentionedUserIds(text) {
+  const names = [...String(text).matchAll(/@([a-z0-9._-]+)/gi)].map(m => m[1].toLowerCase());
+  if (!names.length) return [];
+  return db.prepare(`SELECT id FROM users WHERE disabled = 0 AND lower(username) IN (${names.map(() => '?').join(',')})`)
+    .all(...names).map(r => r.id);
+}
+
+// Nhắc hạn: mỗi giờ quét thẻ đến hạn hôm nay/mai hoặc vừa trễ — mỗi thẻ+ngày chỉ nhắc 1 lần
+function scanDueNotifications() {
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const cards = db.prepare(`
+    SELECT c.id, c.title, c.due_date, l.board_id FROM cards c JOIN lists l ON l.id = c.list_id
+    WHERE c.archived = 0 AND c.due_complete = 0 AND c.due_date != '' AND c.due_date <= ?
+  `).all(tomorrow);
+  const seen = db.prepare(`SELECT 1 FROM notifications WHERE user_id = ? AND card_id = ? AND type = ? AND data LIKE ?`);
+  for (const c of cards) {
+    const type = c.due_date < today ? 'due_overdue' : 'due_soon';
+    if (type === 'due_overdue' && c.due_date < new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10)) continue; // trễ quá 3 ngày thì thôi nhắc
+    for (const uid of cardMemberIds(c.id)) {
+      if (seen.get(uid, c.id, type, `%"${c.due_date}"%`)) continue;
+      pushNotification(uid, null, type, c.board_id, c.id, { title: c.title, due: c.due_date });
+    }
+  }
+}
+setInterval(scanDueNotifications, 60 * 60 * 1000);
+setTimeout(scanDueNotifications, 10 * 1000);
+
+app.get('/api/notifications', auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT n.*, u.name AS actor_name, c.title AS card_title, b.title AS board_title
+    FROM notifications n
+    LEFT JOIN users u ON u.id = n.actor_id
+    LEFT JOIN cards c ON c.id = n.card_id
+    LEFT JOIN boards b ON b.id = n.board_id
+    WHERE n.user_id = ? ORDER BY n.id DESC LIMIT 50
+  `).all(req.user.id);
+  const unread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read = 0').get(req.user.id).n;
+  res.json({ notifications: rows, unread });
+});
+
+app.post('/api/notifications/read', auth, (req, res) => {
+  const ids = req.body?.ids;
+  if (Array.isArray(ids) && ids.length) {
+    db.prepare(`UPDATE notifications SET read = 1 WHERE user_id = ? AND id IN (${ids.map(() => '?').join(',')})`)
+      .run(req.user.id, ...ids.map(Number));
+  } else {
+    db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ?').run(req.user.id);
+  }
+  res.json({ ok: true });
+});
+
 /* ---------- Boards ---------- */
 
 app.get('/api/boards', auth, (req, res) => {
@@ -219,9 +287,12 @@ app.post('/api/boards', auth, (req, res) => {
 
 app.patch('/api/boards/:id', auth, (req, res) => {
   const id = Number(req.params.id);
-  const { title, background, closed } = req.body || {};
+  const { title, background, closed, powerups } = req.body || {};
   if (title !== undefined) db.prepare('UPDATE boards SET title = ? WHERE id = ?').run(String(title).trim(), id);
   if (background !== undefined) db.prepare('UPDATE boards SET background = ? WHERE id = ?').run(String(background), id);
+  if (powerups !== undefined && typeof powerups === 'object') {
+    db.prepare('UPDATE boards SET powerups = ? WHERE id = ?').run(JSON.stringify(powerups), id);
+  }
   if (closed !== undefined) {
     db.prepare('UPDATE boards SET closed = ? WHERE id = ?').run(closed ? 1 : 0, id);
     logActivity(id, null, req.user.id, closed ? 'board_closed' : 'board_reopened', {});
@@ -281,7 +352,17 @@ app.get('/api/boards/:id', auth, (req, res) => {
     JOIN cards c ON c.id = cm.card_id JOIN lists l ON l.id = c.list_id WHERE l.board_id = ?
   `).all(board.id);
   const rules = db.prepare('SELECT * FROM automation_rules WHERE board_id = ?').all(board.id);
-  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules });
+  const voteCounts = db.prepare(`
+    SELECT v.card_id, COUNT(*) AS n FROM card_votes v
+    JOIN cards c ON c.id = v.card_id JOIN lists l ON l.id = c.list_id
+    WHERE l.board_id = ? GROUP BY v.card_id
+  `).all(board.id);
+  const myVotes = db.prepare(`
+    SELECT v.card_id FROM card_votes v
+    JOIN cards c ON c.id = v.card_id JOIN lists l ON l.id = c.list_id
+    WHERE l.board_id = ? AND v.user_id = ?
+  `).all(board.id, req.user.id).map(r => r.card_id);
+  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes });
 });
 
 app.get('/api/boards/:id/archived', auth, (req, res) => {
@@ -357,6 +438,10 @@ app.put('/api/cards/:id/members', auth, (req, res) => {
   const boardId = boardIdOfCard(cardId);
   if (JSON.stringify([...beforeRows].sort()) !== JSON.stringify([...ids].sort())) {
     logActivity(boardId, cardId, req.user.id, 'members_changed', { count: ids.length });
+    const card = db.prepare('SELECT title FROM cards WHERE id = ?').get(cardId);
+    for (const uid of ids.filter(x => !beforeRows.includes(x))) {
+      pushNotification(uid, req.user.id, 'assigned', boardId, cardId, { title: card?.title });
+    }
   }
   notifyBoard(boardId);
   res.json({ ok: true });
@@ -375,9 +460,10 @@ app.post('/api/lists', auth, (req, res) => {
 
 app.patch('/api/lists/:id', auth, (req, res) => {
   const boardId = boardIdOfList(req.params.id);
-  const { title, position, archived } = req.body || {};
+  const { title, position, archived, wip_limit } = req.body || {};
   if (title !== undefined) db.prepare('UPDATE lists SET title = ? WHERE id = ?').run(String(title).trim(), req.params.id);
   if (position !== undefined) db.prepare('UPDATE lists SET position = ? WHERE id = ?').run(Number(position), req.params.id);
+  if (wip_limit !== undefined) db.prepare('UPDATE lists SET wip_limit = ? WHERE id = ?').run(Math.max(0, Number(wip_limit) || 0), req.params.id);
   if (archived !== undefined) {
     db.prepare('UPDATE lists SET archived = ? WHERE id = ?').run(archived ? 1 : 0, req.params.id);
     logActivity(boardId, null, req.user.id, archived ? 'list_archived' : 'list_restored',
@@ -464,6 +550,10 @@ app.patch('/api/cards/:id', auth, (req, res) => {
     const toList = db.prepare('SELECT title, board_id FROM lists WHERE id = ?').get(Number(b.list_id));
     logActivity(toList?.board_id || boardId, id, req.user.id, 'card_moved',
       { from: current.list_title, to: toList?.title });
+    for (const uid of cardMemberIds(id)) {
+      pushNotification(uid, req.user.id, 'moved', toList?.board_id || boardId, id,
+        { title: current.title, from: current.list_title, to: toList?.title });
+    }
     applyRules(id, Number(b.list_id), req.user.id);
     if (toList && toList.board_id !== boardId) notifyBoard(toList.board_id);
   }
@@ -585,6 +675,14 @@ app.post('/api/cards/:id/comments', auth, (req, res) => {
   db.prepare('INSERT INTO comments (card_id, user_id, text) VALUES (?, ?, ?)').run(cardId, req.user.id, text);
   const boardId = boardIdOfCard(cardId);
   logActivity(boardId, cardId, req.user.id, 'comment_added', { text: text.slice(0, 80) });
+  const cardTitle = db.prepare('SELECT title FROM cards WHERE id = ?').get(cardId)?.title;
+  const mentioned = new Set(mentionedUserIds(text));
+  for (const uid of mentioned) {
+    pushNotification(uid, req.user.id, 'mention', boardId, cardId, { title: cardTitle, text: text.slice(0, 80) });
+  }
+  for (const uid of cardMemberIds(cardId)) {
+    if (!mentioned.has(uid)) pushNotification(uid, req.user.id, 'comment', boardId, cardId, { title: cardTitle, text: text.slice(0, 80) });
+  }
   notifyBoard(boardId);
   broadcast(boardId, { type: 'comments-changed', cardId });
   res.json({ ok: true });
@@ -626,6 +724,214 @@ app.get('/api/search', auth, (req, res) => {
   res.json({ cards });
 });
 
+/* ---------- Định vị thẻ (cho link chia sẻ #c/<id>) ---------- */
+
+app.get('/api/cards/:id/locate', auth, (req, res) => {
+  const row = db.prepare(`
+    SELECT c.id, c.archived, l.board_id FROM cards c JOIN lists l ON l.id = c.list_id WHERE c.id = ?
+  `).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Thẻ không tồn tại' });
+  res.json({ board_id: row.board_id, archived: !!row.archived });
+});
+
+/* ---------- Upload file đính kèm ---------- */
+
+const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// Loại hiển thị trực tiếp trong trình duyệt; còn lại ép tải về (chặn HTML/SVG thực thi script)
+const INLINE_TYPES = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', pdf: 'application/pdf',
+};
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+
+app.post('/api/cards/:id/upload', auth,
+  express.raw({ type: () => true, limit: '25mb' }),
+  (req, res) => {
+    const cardId = Number(req.params.id);
+    const boardId = boardIdOfCard(cardId);
+    if (!boardId) return res.status(404).json({ error: 'Thẻ không tồn tại' });
+    if (!req.body || !req.body.length) return res.status(400).json({ error: 'File trống' });
+    const original = String(req.query.name || 'file').slice(0, 120);
+    const ext = (original.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'bin';
+    const fileName = crypto.randomBytes(12).toString('hex') + '.' + ext;
+    fs.writeFileSync(path.join(UPLOAD_DIR, fileName), req.body);
+    const url = '/u/' + fileName;
+    const info = db.prepare('INSERT INTO attachments (card_id, url, name) VALUES (?, ?, ?)').run(cardId, url, original);
+    logActivity(boardId, cardId, req.user.id, 'attachment_added', { name: original });
+    // Ảnh đầu tiên tự thành ảnh bìa nếu thẻ chưa có (giống Trello)
+    const card = db.prepare('SELECT cover FROM cards WHERE id = ?').get(cardId);
+    if (IMAGE_EXTS.includes(ext) && (req.query.cover === '1' || !card.cover)) {
+      db.prepare('UPDATE cards SET cover = ? WHERE id = ?').run('url:' + url, cardId);
+    }
+    notifyBoard(boardId);
+    res.json({ id: info.lastInsertRowid, url });
+  });
+
+app.get('/u/:file', (req, res) => {
+  const file = String(req.params.file).replace(/[^a-z0-9.]/gi, '');
+  const full = path.join(UPLOAD_DIR, file);
+  if (!fs.existsSync(full)) return res.status(404).end();
+  const ext = file.split('.').pop().toLowerCase();
+  if (INLINE_TYPES[ext]) {
+    res.set('Content-Type', INLINE_TYPES[ext]);
+    res.set('Content-Disposition', 'inline');
+  } else {
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', 'attachment');
+  }
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.sendFile(full);
+});
+
+/* ---------- Vote trên thẻ (Power-up) ---------- */
+
+app.post('/api/cards/:id/vote', auth, (req, res) => {
+  const cardId = Number(req.params.id);
+  const has = db.prepare('SELECT 1 FROM card_votes WHERE card_id = ? AND user_id = ?').get(cardId, req.user.id);
+  if (has) db.prepare('DELETE FROM card_votes WHERE card_id = ? AND user_id = ?').run(cardId, req.user.id);
+  else db.prepare('INSERT INTO card_votes (card_id, user_id) VALUES (?, ?)').run(cardId, req.user.id);
+  notifyBoard(boardIdOfCard(cardId));
+  const count = db.prepare('SELECT COUNT(*) AS n FROM card_votes WHERE card_id = ?').get(cardId).n;
+  res.json({ voted: !has, count });
+});
+
+/* ---------- Inbox cá nhân (thu việc nhanh, như Trello Inbox) ---------- */
+
+app.get('/api/inbox', auth, (req, res) => {
+  res.json({ items: db.prepare('SELECT * FROM inbox_items WHERE user_id = ? ORDER BY position, id').all(req.user.id) });
+});
+
+app.post('/api/inbox', auth, (req, res) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Nội dung trống' });
+  const info = db.prepare('INSERT INTO inbox_items (user_id, text, position) VALUES (?, ?, ?)')
+    .run(req.user.id, text, nextPosition('inbox_items', 'WHERE user_id = ?', [req.user.id]));
+  res.json({ id: info.lastInsertRowid });
+});
+
+app.patch('/api/inbox/:id', auth, (req, res) => {
+  const item = db.prepare('SELECT * FROM inbox_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Không tồn tại' });
+  const { text, date, position } = req.body || {};
+  if (text !== undefined) db.prepare('UPDATE inbox_items SET text = ? WHERE id = ?').run(String(text).trim(), item.id);
+  if (date !== undefined) db.prepare('UPDATE inbox_items SET date = ? WHERE id = ?').run(String(date), item.id);
+  if (position !== undefined) db.prepare('UPDATE inbox_items SET position = ? WHERE id = ?').run(Number(position), item.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/inbox/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM inbox_items WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// Chuyển mục Inbox thành thẻ thật trên board
+app.post('/api/inbox/:id/convert', auth, (req, res) => {
+  const item = db.prepare('SELECT * FROM inbox_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Không tồn tại' });
+  const listId = Number(req.body?.list_id);
+  if (!listId || !boardIdOfList(listId)) return res.status(400).json({ error: 'Thiếu cột đích' });
+  const info = db.prepare('INSERT INTO cards (list_id, title, due_date, position) VALUES (?, ?, ?, ?)')
+    .run(listId, item.text, item.date || '', nextPosition('cards', 'WHERE list_id = ?', [listId]));
+  db.prepare('INSERT INTO card_members (card_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.user.id);
+  db.prepare('DELETE FROM inbox_items WHERE id = ?').run(item.id);
+  const boardId = boardIdOfList(listId);
+  logActivity(boardId, info.lastInsertRowid, req.user.id, 'card_created', { title: item.text });
+  notifyBoard(boardId);
+  res.json({ id: info.lastInsertRowid, board_id: boardId });
+});
+
+/* ---------- Planner tuần cá nhân ---------- */
+
+app.get('/api/planner', auth, (req, res) => {
+  const slots = db.prepare(`
+    SELECT ps.card_id, ps.date, c.title, c.due_date, c.due_complete, l.title AS list_title, l.board_id, b.title AS board_title
+    FROM planner_slots ps
+    JOIN cards c ON c.id = ps.card_id JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
+    WHERE ps.user_id = ? AND c.archived = 0
+  `).all(req.user.id);
+  const myCards = db.prepare(`
+    SELECT c.id, c.title, c.due_date, c.due_complete, l.title AS list_title, l.board_id, b.title AS board_title
+    FROM card_members cm
+    JOIN cards c ON c.id = cm.card_id JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
+    WHERE cm.user_id = ? AND c.archived = 0 AND l.archived = 0 AND b.closed = 0 AND c.due_complete = 0
+    ORDER BY CASE WHEN c.due_date = '' THEN 1 ELSE 0 END, c.due_date, c.id DESC LIMIT 100
+  `).all(req.user.id);
+  const inbox = db.prepare("SELECT * FROM inbox_items WHERE user_id = ? AND date != '' ORDER BY date").all(req.user.id);
+  res.json({ slots, myCards, inbox });
+});
+
+app.put('/api/planner', auth, (req, res) => {
+  const cardId = Number(req.body?.card_id);
+  const date = String(req.body?.date || '');
+  if (!cardId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Cần thẻ và ngày hợp lệ' });
+  db.prepare('INSERT INTO planner_slots (user_id, card_id, date) VALUES (?, ?, ?) ON CONFLICT(user_id, card_id) DO UPDATE SET date = excluded.date')
+    .run(req.user.id, cardId, date);
+  res.json({ ok: true });
+});
+
+app.delete('/api/planner/:cardId', auth, (req, res) => {
+  db.prepare('DELETE FROM planner_slots WHERE user_id = ? AND card_id = ?').run(req.user.id, req.params.cardId);
+  res.json({ ok: true });
+});
+
+/* ---------- AI (Claude API — bật khi có ANTHROPIC_API_KEY) ---------- */
+
+const AI_KEY = process.env.ANTHROPIC_API_KEY || '';
+const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-5-5';
+
+app.get('/api/ai/status', auth, (req, res) => res.json({ enabled: !!AI_KEY }));
+
+async function askClaude(system, userText) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: AI_MODEL, max_tokens: 800, system, messages: [{ role: 'user', content: userText }] }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error?.message || 'AI lỗi ' + r.status);
+    return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  } finally { clearTimeout(timer); }
+}
+
+app.post('/api/ai/card/:id', auth, async (req, res) => {
+  if (!AI_KEY) return res.status(400).json({ error: 'Chưa cấu hình ANTHROPIC_API_KEY trên máy chủ' });
+  const cardId = Number(req.params.id);
+  const card = db.prepare('SELECT * FROM cards WHERE id = ?').get(cardId);
+  if (!card) return res.status(404).json({ error: 'Thẻ không tồn tại' });
+  const comments = db.prepare(`
+    SELECT u.name AS author, cm.text FROM comments cm LEFT JOIN users u ON u.id = cm.user_id
+    WHERE cm.card_id = ? ORDER BY cm.id DESC LIMIT 30
+  `).all(cardId).reverse();
+  const checklist = db.prepare('SELECT text, checked FROM checklist_items WHERE card_id = ? ORDER BY position').all(cardId);
+  const action = String(req.body?.action || '');
+  const ctx = `Thẻ công việc: "${card.title}"
+Mô tả hiện tại: ${card.description || '(chưa có)'}
+Checklist: ${checklist.map(i => `[${i.checked ? 'x' : ' '}] ${i.text}`).join('; ') || '(chưa có)'}
+Bình luận (cũ → mới): ${comments.map(c => `${c.author || '?'}: ${c.text}`).join(' | ') || '(chưa có)'}`;
+  const prompts = {
+    summary: ['Bạn là trợ lý quản lý công việc của một đội sản xuất video YouTube người Việt. Trả lời ngắn gọn bằng tiếng Việt, không markdown.',
+      `${ctx}\n\nTóm tắt tình trạng thẻ này trong tối đa 4 câu: việc gì, đang ở đâu, vướng gì, việc kế tiếp là gì.`],
+    describe: ['Bạn là trợ lý viết mô tả công việc cho đội sản xuất video YouTube người Việt. Viết tiếng Việt, không markdown.',
+      `${ctx}\n\nViết mô tả ngắn gọn (3-5 câu) cho thẻ này: mục tiêu, yêu cầu đầu ra, lưu ý. Chỉ trả về nội dung mô tả.`],
+    checklist: ['Bạn là trợ lý chia nhỏ công việc cho đội sản xuất video YouTube người Việt. Trả về MỖI DÒNG MỘT VIỆC CON, tối đa 7 dòng, không đánh số, không gạch đầu dòng, không giải thích.',
+      `${ctx}\n\nĐề xuất danh sách việc con để hoàn thành thẻ này.`],
+  };
+  if (!prompts[action]) return res.status(400).json({ error: 'Hành động không hợp lệ' });
+  try {
+    const text = await askClaude(prompts[action][0], prompts[action][1]);
+    res.json({ text });
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e).slice(0, 200) });
+  }
+});
+
 /* ---------- WebSocket ---------- */
 
 const server = http.createServer(app);
@@ -636,6 +942,7 @@ wss.on('connection', (socket, req) => {
   const user = getSessionUser(url.searchParams.get('token'));
   if (!user) { socket.close(4001, 'unauthorized'); return; }
   socket.boardId = null;
+  socket.userId = user.id;
   socket.on('message', raw => {
     try {
       const msg = JSON.parse(raw);
@@ -649,6 +956,13 @@ function broadcast(boardId, payload) {
   for (const client of wss.clients) {
     if (client.readyState !== 1) continue;
     if (boardId === null || client.boardId === boardId) client.send(msg);
+  }
+}
+
+function broadcastUser(userId, payload) {
+  const msg = JSON.stringify(payload);
+  for (const client of wss.clients) {
+    if (client.readyState === 1 && client.userId === userId) client.send(msg);
   }
 }
 

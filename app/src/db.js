@@ -171,6 +171,48 @@ if (migrated === 0) {
   }
 }
 
+/* ---------- Migration v3: đợt 2 — thông báo, Inbox, Planner, Power-ups ---------- */
+
+if (!hasColumn('boards', 'powerups'))
+  db.exec("ALTER TABLE boards ADD COLUMN powerups TEXT NOT NULL DEFAULT '{}'");
+if (!hasColumn('lists', 'wip_limit'))
+  db.exec('ALTER TABLE lists ADD COLUMN wip_limit INTEGER NOT NULL DEFAULT 0');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  type TEXT NOT NULL,
+  board_id INTEGER REFERENCES boards(id) ON DELETE CASCADE,
+  card_id INTEGER REFERENCES cards(id) ON DELETE CASCADE,
+  data TEXT NOT NULL DEFAULT '{}',
+  read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS inbox_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  date TEXT NOT NULL DEFAULT '',
+  position REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS planner_slots (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  PRIMARY KEY (user_id, card_id)
+);
+CREATE TABLE IF NOT EXISTS card_votes (
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (card_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read, id);
+CREATE INDEX IF NOT EXISTS idx_inbox_user ON inbox_items(user_id, position);
+`);
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

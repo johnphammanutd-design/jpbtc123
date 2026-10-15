@@ -227,7 +227,73 @@
     background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 8px; opacity: 0;
     transition: opacity .3s; pointer-events: none; z-index: 100; }
   .toast.show { opacity: .95; }
-  @media (max-width: 600px) { .list, .add-list { width: 260px; flex-basis: 260px; } #searchBox { width: 110px; } }
+  /* Thông báo 🔔 */
+  #notifWrap { position: relative; }
+  #notifBtn .dot { position: absolute; top: -4px; right: -4px; background: var(--danger); color: #fff;
+    border-radius: 10px; font-size: 10px; min-width: 16px; height: 16px; line-height: 16px;
+    padding: 0 3px; font-weight: 700; }
+  #notifBtn { position: relative; }
+  #notifPop { position: absolute; top: 38px; right: 0; width: 360px; max-height: 440px; overflow-y: auto;
+    background: var(--surface); color: var(--text); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35); z-index: 70; }
+  #notifPop .head { display: flex; align-items: center; padding: 10px 12px; font-weight: 700;
+    border-bottom: 1px solid rgba(128,128,128,.25); }
+  #notifPop .head button { margin-left: auto; border: 0; background: transparent; color: var(--accent);
+    cursor: pointer; font-size: 12px; }
+  .notif-item { display: block; width: 100%; text-align: left; border: 0; background: transparent;
+    color: var(--text); padding: 10px 12px; cursor: pointer; font: inherit;
+    border-bottom: 1px solid rgba(128,128,128,.15); }
+  .notif-item:hover { background: var(--list-bg); }
+  .notif-item.unread { background: rgba(87,157,255,.1); font-weight: 600; }
+  .notif-item .when { font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .notif-empty { padding: 20px; color: var(--muted); font-size: 13px; text-align: center; }
+
+  /* Inbox 📥 — panel trái */
+  #inboxPanel { position: fixed; top: 0; left: 0; bottom: 0; width: 320px; background: var(--surface);
+    color: var(--text); box-shadow: 4px 0 16px rgba(0,0,0,.3); z-index: 55; padding: 16px; overflow-y: auto; }
+  #inboxPanel h3 { margin: 0 0 10px; }
+  #inboxPanel .close { position: absolute; top: 12px; right: 12px; border: 0; background: transparent;
+    color: var(--muted); cursor: pointer; font-size: 16px; }
+  .inbox-item { background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 13px; }
+  .inbox-item .row2 { display: flex; gap: 6px; margin-top: 6px; align-items: center; flex-wrap: wrap; }
+  .inbox-item .row2 button, .inbox-item .row2 input[type=date] { font-size: 12px; padding: 3px 8px;
+    border-radius: 6px; border: 1px solid rgba(128,128,128,.35); background: var(--surface);
+    color: var(--text); cursor: pointer; width: auto; }
+  .inbox-item select { font-size: 12px; padding: 3px; border-radius: 6px; max-width: 110px;
+    background: var(--surface); color: var(--text); border: 1px solid rgba(128,128,128,.35); }
+
+  /* Planner tuần 🗓 */
+  #plannerView { background: var(--surface); border-radius: 12px; padding: 16px; }
+  .plan-layout { display: grid; grid-template-columns: 240px 1fr; gap: 14px; }
+  .plan-side h4 { margin: 8px 0 6px; font-size: 12px; color: var(--muted); }
+  .plan-chip { background: var(--bg); border-radius: 6px; padding: 6px 8px; margin: 4px 0; font-size: 13px;
+    cursor: grab; border-left: 3px solid var(--accent); }
+  .plan-chip .src { font-size: 11px; color: var(--muted); }
+  .plan-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .plan-day { background: var(--bg); border-radius: 8px; min-height: 160px; padding: 6px; font-size: 12px; }
+  .plan-day.today { outline: 2px solid var(--accent); }
+  .plan-day.dragover { outline: 2px dashed var(--accent); }
+  .plan-day .dh { color: var(--muted); margin-bottom: 4px; font-weight: 700; }
+  .plan-slot { background: var(--surface); border-radius: 6px; box-shadow: var(--shadow); padding: 4px 6px;
+    margin-bottom: 4px; cursor: pointer; display: flex; gap: 4px; align-items: baseline; }
+  .plan-slot span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plan-slot .del { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
+  .plan-slot.inbox-slot { border-left: 3px solid var(--warn); }
+  .plan-slot.done { opacity: .6; text-decoration: line-through; }
+
+  /* Cover ảnh + vote + WIP */
+  .card .cover.img { height: 130px; background-size: cover; background-position: center; }
+  .badge.vote { cursor: pointer; }
+  .badge.vote.mine { background: var(--accent); color: #fff; }
+  .list-header .count.over { background: var(--danger); color: #fff; font-weight: 700; }
+  .ai-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .ai-row button { font-size: 12px; }
+  .ai-out { background: var(--bg); border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 8px;
+    white-space: pre-wrap; }
+  .cover-picker button.imgcover { width: auto; padding: 0 8px; font-size: 11px; background: var(--list-bg); color: var(--text); }
+
+  @media (max-width: 600px) { .list, .add-list { width: 260px; flex-basis: 260px; } #searchBox { width: 110px; }
+    .plan-layout { grid-template-columns: 1fr; } .plan-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
@@ -237,6 +303,8 @@
   <button id="starBtn" class="hidden" title="Đánh dấu sao">☆</button>
   <button id="viewBoardBtn" class="hidden on">Bảng</button>
   <button id="viewCalBtn" class="hidden">Lịch</button>
+  <button id="inboxBtn" class="hidden" title="Inbox — thu việc nhanh">📥</button>
+  <button id="plannerBtn" class="hidden" title="Planner tuần của tôi">🗓</button>
   <span class="spacer"></span>
   <div id="searchWrap" class="hidden">
     <input id="searchBox" type="search" placeholder="Tìm thẻ…" autocomplete="off">
@@ -244,6 +312,10 @@
   </div>
   <button id="filterBtn" class="hidden">Lọc</button>
   <button id="menuBtn" class="hidden">⋯ Menu</button>
+  <div id="notifWrap" class="hidden">
+    <button id="notifBtn" title="Thông báo">🔔<span class="dot hidden" id="notifDot"></span></button>
+    <div id="notifPop" class="hidden"></div>
+  </div>
   <span id="whoami" style="font-size:13px"></span>
   <button id="adminBtn" class="hidden">Người dùng</button>
   <button id="pwBtn" class="hidden">Đổi mật khẩu</button>
@@ -269,7 +341,10 @@
 
   <div id="boardView" class="hidden"></div>
   <div id="calendarView" class="hidden"></div>
+  <div id="plannerView" class="hidden"></div>
 </main>
+
+<div id="inboxPanel" class="hidden"></div>
 
 <div id="filterPop" class="popover hidden">
   <h4>Từ khóa</h4>
@@ -312,16 +387,27 @@
     <label>Checklist</label>
     <div id="fChecklist"></div>
     <button type="button" class="ghost" id="addCheck">+ Thêm việc con</button>
-    <label>Đính kèm (link)</label>
+    <label>Đính kèm</label>
     <div id="fAttachments"></div>
     <div style="display:flex;gap:8px">
       <input type="text" id="fNewAttach" placeholder="https://… (Drive, Docs, YouTube…)" style="flex:1">
-      <button type="button" class="btn" id="addAttach">Thêm</button>
+      <button type="button" class="btn" id="addAttach">Thêm link</button>
+      <button type="button" class="btn" id="uploadBtn">📤 Tải file</button>
+      <input type="file" id="uploadInput" class="hidden">
+    </div>
+    <div id="aiSection" class="hidden">
+      <label>✨ Trợ lý AI</label>
+      <div class="ai-row">
+        <button type="button" class="btn" id="aiSummary">Tóm tắt thẻ</button>
+        <button type="button" class="btn" id="aiDescribe">Viết mô tả</button>
+        <button type="button" class="btn" id="aiChecklist">Gợi ý checklist</button>
+      </div>
+      <div id="aiOut" class="ai-out hidden"></div>
     </div>
     <label>Bình luận</label>
     <div id="fComments"></div>
     <div style="display:flex;gap:8px">
-      <input type="text" id="fNewComment" placeholder="Viết bình luận…" style="flex:1">
+      <input type="text" id="fNewComment" placeholder="Viết bình luận… (@tên-đăng-nhập để nhắc ai đó)" style="flex:1">
       <button type="button" class="btn btn-primary" id="sendComment">Gửi</button>
     </div>
     <label><button type="button" class="ghost" id="toggleCardActivity" style="width:auto;display:inline;padding:2px 8px">Hiện hoạt động của thẻ</button></label>
@@ -330,6 +416,8 @@
       <button class="btn-primary" value="save">Lưu</button>
       <button type="button" id="closeCard">Đóng</button>
       <button type="button" class="btn" id="copyCard">Sao chép</button>
+      <button type="button" class="btn" id="linkCard" title="Chép link thẻ">🔗 Link</button>
+      <button type="button" class="btn hidden" id="voteCard">👍 Vote</button>
       <button type="button" class="btn-danger" id="archiveCard">Lưu trữ</button>
     </div>
   </form>
@@ -382,7 +470,46 @@ let ws = null;
 let viewMode = 'board'; // 'board' | 'calendar'
 let calMonth = null;    // Date đầu tháng đang xem
 let pendingOpenCardId = null;
+let aiEnabled = false;
+let plannerWeekStart = null; // Date thứ 2 của tuần đang xem
 const filter = { text: '', members: new Set(), labels: new Set(), due: null };
+
+// Power-ups bật/tắt theo board (vote, wip, ai)
+function powerups() {
+  try { return JSON.parse(boardData?.board?.powerups || '{}'); } catch { return {}; }
+}
+
+/* ---------- Router #b/<board> #c/<thẻ> #planner ---------- */
+let lastHash = '';
+function setHash(h) {
+  lastHash = h;
+  if (location.hash !== h) {
+    if (h) location.hash = h;
+    else history.replaceState(null, '', location.pathname + location.search);
+  }
+}
+async function applyHash() {
+  const h = location.hash;
+  lastHash = h;
+  if (!me) return;
+  const mc = h.match(/^#c\/(\d+)/);
+  const mb = h.match(/^#b\/(\d+)/);
+  if (mc) {
+    try {
+      const { board_id } = await api(`/cards/${mc[1]}/locate`);
+      pendingOpenCardId = Number(mc[1]);
+      if (currentBoardId !== board_id || !boardData) await openBoard(board_id);
+      else await loadBoard(board_id, true);
+    } catch { showBoards(); }
+  } else if (mb) {
+    if (currentBoardId !== Number(mb[1])) await openBoard(Number(mb[1]));
+  } else if (h === '#planner') {
+    showPlanner();
+  } else {
+    if (currentBoardId !== null || $('boardsView').classList.contains('hidden')) showBoards();
+  }
+}
+window.addEventListener('hashchange', () => { if (location.hash !== lastHash) applyHash(); });
 
 const $ = id => document.getElementById(id);
 
@@ -423,6 +550,7 @@ function connectWS() {
       if (msg.type === 'board-changed' && msg.boardId === currentBoardId) loadBoard(currentBoardId, true);
       if (msg.type === 'boards-changed' && currentBoardId === null && me) loadBoards();
       if (msg.type === 'comments-changed' && editingCard && msg.cardId === editingCard.id) loadComments(editingCard.id);
+      if (msg.type === 'notification') refreshNotifCount();
     } catch {}
   };
   ws.onclose = () => setTimeout(connectWS, 3000);
@@ -433,9 +561,9 @@ function watchBoard(boardId) {
 
 /* ---------- Điều hướng ---------- */
 function showLogin() {
-  for (const id of ['boardsView', 'boardView', 'calendarView']) $(id).classList.add('hidden');
+  for (const id of ['boardsView', 'boardView', 'calendarView', 'plannerView', 'inboxPanel', 'notifPop']) $(id).classList.add('hidden');
   $('loginView').classList.remove('hidden');
-  for (const id of ['adminBtn', 'pwBtn', 'logoutBtn', 'searchWrap', 'filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn'])
+  for (const id of ['adminBtn', 'pwBtn', 'logoutBtn', 'searchWrap', 'filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'inboxBtn', 'plannerBtn', 'notifWrap'])
     $(id).classList.add('hidden');
   $('whoami').textContent = '';
   $('boardTitle').textContent = '';
@@ -445,21 +573,25 @@ function showLogin() {
 async function showApp() {
   $('loginView').classList.add('hidden');
   $('whoami').textContent = me.name;
-  $('pwBtn').classList.remove('hidden');
-  $('logoutBtn').classList.remove('hidden');
-  $('searchWrap').classList.remove('hidden');
+  for (const id of ['pwBtn', 'logoutBtn', 'searchWrap', 'inboxBtn', 'plannerBtn', 'notifWrap'])
+    $(id).classList.remove('hidden');
   if (me.is_admin) $('adminBtn').classList.remove('hidden');
   users = (await api('/users')).users;
   connectWS();
-  showBoards();
+  api('/ai/status').then(r => { aiEnabled = !!r.enabled; }).catch(() => {});
+  refreshNotifCount();
+  allBoards = (await api('/boards')).boards;
+  if (location.hash) applyHash();
+  else showBoards();
 }
 
 async function showBoards() {
   currentBoardId = null;
   boardData = null;
   viewMode = 'board';
+  setHash('');
   watchBoard(null);
-  for (const id of ['boardView', 'calendarView']) $(id).classList.add('hidden');
+  for (const id of ['boardView', 'calendarView', 'plannerView']) $(id).classList.add('hidden');
   for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn']) $(id).classList.add('hidden');
   $('filterPop').classList.add('hidden');
   $('boardMenu').classList.add('hidden');
@@ -537,7 +669,8 @@ async function loadBoards() {
 
 async function openBoard(id) {
   currentBoardId = id;
-  $('boardsView').classList.add('hidden');
+  setHash('#b/' + id);
+  for (const el of ['boardsView', 'plannerView']) $(el).classList.add('hidden');
   for (const el of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn']) $(el).classList.remove('hidden');
   watchBoard(id);
   setViewMode('board');
@@ -642,6 +775,18 @@ function renderList(list) {
   const count = document.createElement('span');
   count.className = 'count';
   count.textContent = cards.length;
+  if (powerups().wip && list.wip_limit > 0) {
+    count.textContent = `${cards.length}/${list.wip_limit}`;
+    if (cards.length > list.wip_limit) count.classList.add('over');
+    count.title = 'Giới hạn việc đang làm (WIP) của cột';
+  }
+  if (powerups().wip) {
+    count.style.cursor = 'pointer';
+    count.onclick = async () => {
+      const v = prompt(`Giới hạn WIP cho cột "${list.title}" (0 = bỏ giới hạn):`, list.wip_limit || 0);
+      if (v !== null) await api('/lists/' + list.id, { method: 'PATCH', body: { wip_limit: Number(v) || 0 } });
+    };
+  }
   const archBtn = document.createElement('button');
   archBtn.className = 'del';
   archBtn.textContent = '✕';
@@ -703,7 +848,10 @@ function renderCard(c) {
   if (c.cover) {
     const cover = document.createElement('div');
     cover.className = 'cover';
-    cover.style.background = c.cover;
+    if (c.cover.startsWith('url:')) {
+      cover.classList.add('img');
+      cover.style.backgroundImage = `url("${c.cover.slice(4)}")`;
+    } else cover.style.background = c.cover;
     el.appendChild(cover);
   }
   const inner = document.createElement('div');
@@ -753,6 +901,18 @@ function renderCard(c) {
     const at = document.createElement('span');
     at.textContent = '📎 ' + attachCount;
     meta.appendChild(at);
+  }
+  if (powerups().vote) {
+    const n = (boardData.voteCounts?.find(x => x.card_id === c.id) || {}).n || 0;
+    const mine = boardData.myVotes?.includes(c.id);
+    if (n || mine) {
+      const v = document.createElement('span');
+      v.className = 'badge vote' + (mine ? ' mine' : '');
+      v.textContent = '👍 ' + n;
+      v.title = 'Vote cho thẻ';
+      v.onclick = e => { e.stopPropagation(); api(`/cards/${c.id}/vote`, { method: 'POST' }); };
+      meta.appendChild(v);
+    }
   }
   if (c.description) {
     const d = document.createElement('span');
@@ -1033,6 +1193,296 @@ $('filterClear').onclick = () => {
   render();
 };
 
+/* ---------- Thông báo 🔔 ---------- */
+async function refreshNotifCount() {
+  try {
+    const { unread } = await api('/notifications');
+    const dot = $('notifDot');
+    dot.textContent = unread > 99 ? '99+' : unread;
+    dot.classList.toggle('hidden', !unread);
+  } catch {}
+}
+
+function notifText(n) {
+  let d = {};
+  try { d = JSON.parse(n.data); } catch {}
+  const who = n.actor_name || '';
+  const card = `"${n.card_title || d.title || 'thẻ'}"`;
+  switch (n.type) {
+    case 'assigned': return `${who} đã gán bạn vào ${card}`;
+    case 'mention': return `${who} đã nhắc bạn trong ${card}: “${d.text || ''}”`;
+    case 'comment': return `${who} đã bình luận vào ${card}: “${d.text || ''}”`;
+    case 'moved': return `${who} đã chuyển ${card} từ "${d.from}" sang "${d.to}"`;
+    case 'due_soon': return `⏰ ${card} đến hạn ${d.due?.split('-').reverse().slice(0, 2).join('/')}`;
+    case 'due_overdue': return `🔴 ${card} đã TRỄ HẠN (${d.due?.split('-').reverse().slice(0, 2).join('/')})`;
+    default: return n.type;
+  }
+}
+
+async function openNotifPop() {
+  const pop = $('notifPop');
+  pop.innerHTML = '';
+  pop.classList.remove('hidden');
+  const { notifications } = await api('/notifications');
+  const head = document.createElement('div');
+  head.className = 'head';
+  head.textContent = 'Thông báo';
+  const markAll = document.createElement('button');
+  markAll.textContent = 'Đánh dấu đã đọc hết';
+  markAll.onclick = async () => { await api('/notifications/read', { method: 'POST', body: {} }); openNotifPop(); refreshNotifCount(); };
+  head.appendChild(markAll);
+  pop.appendChild(head);
+  if (!notifications.length) {
+    const e = document.createElement('div');
+    e.className = 'notif-empty';
+    e.textContent = 'Chưa có thông báo nào';
+    pop.appendChild(e);
+  }
+  for (const n of notifications) {
+    const b = document.createElement('button');
+    b.className = 'notif-item' + (n.read ? '' : ' unread');
+    const t = document.createElement('div');
+    t.textContent = notifText(n);
+    const w = document.createElement('div');
+    w.className = 'when';
+    w.textContent = (n.board_title ? n.board_title + ' · ' : '') + n.created_at + ' UTC';
+    b.append(t, w);
+    b.onclick = async () => {
+      pop.classList.add('hidden');
+      if (!n.read) { await api('/notifications/read', { method: 'POST', body: { ids: [n.id] } }); refreshNotifCount(); }
+      if (n.card_id) { location.hash = '#c/' + n.card_id; applyHash(); }
+    };
+    pop.appendChild(b);
+  }
+}
+$('notifBtn').onclick = () => {
+  const pop = $('notifPop');
+  if (pop.classList.contains('hidden')) openNotifPop();
+  else pop.classList.add('hidden');
+};
+
+/* ---------- Inbox 📥 — thu việc nhanh ---------- */
+async function openInbox() {
+  const p = $('inboxPanel');
+  p.innerHTML = '';
+  p.classList.remove('hidden');
+  const close = document.createElement('button');
+  close.className = 'close';
+  close.textContent = '✕';
+  close.onclick = () => p.classList.add('hidden');
+  const h = document.createElement('h3');
+  h.textContent = '📥 Inbox của tôi';
+  const hint = document.createElement('p');
+  hint.style.cssText = 'font-size:12px;color:var(--muted);margin:0 0 8px';
+  hint.textContent = 'Nháp việc cá nhân — đặt ngày để hiện trong Planner, hoặc chuyển thành thẻ trên board.';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Gõ việc cần nhớ rồi Enter…';
+  input.onkeydown = async e => {
+    if (e.key === 'Enter' && input.value.trim()) {
+      await api('/inbox', { method: 'POST', body: { text: input.value.trim() } });
+      openInbox();
+    }
+  };
+  p.append(close, h, hint, input);
+  const { items } = await api('/inbox');
+  for (const item of items) {
+    const row = document.createElement('div');
+    row.className = 'inbox-item';
+    const txt = document.createElement('div');
+    txt.textContent = item.text;
+    txt.title = 'Bấm để sửa';
+    txt.style.cursor = 'pointer';
+    txt.onclick = async () => {
+      const v = prompt('Sửa nội dung:', item.text);
+      if (v !== null && v.trim()) { await api('/inbox/' + item.id, { method: 'PATCH', body: { text: v.trim() } }); openInbox(); }
+    };
+    const row2 = document.createElement('div');
+    row2.className = 'row2';
+    const date = document.createElement('input');
+    date.type = 'date';
+    date.value = item.date || '';
+    date.title = 'Ngày dự định làm (hiện trong Planner)';
+    date.onchange = () => api('/inbox/' + item.id, { method: 'PATCH', body: { date: date.value } });
+    const boardSel = document.createElement('select');
+    boardSel.innerHTML = '<option value="">→ board…</option>';
+    for (const b of allBoards.filter(b => !b.closed)) {
+      const o = document.createElement('option');
+      o.value = b.id;
+      o.textContent = b.title;
+      boardSel.appendChild(o);
+    }
+    const listSel = document.createElement('select');
+    listSel.classList.add('hidden');
+    boardSel.onchange = async () => {
+      listSel.innerHTML = '';
+      if (!boardSel.value) { listSel.classList.add('hidden'); return; }
+      const data = await api('/boards/' + boardSel.value);
+      for (const l of data.lists) {
+        const o = document.createElement('option');
+        o.value = l.id;
+        o.textContent = l.title;
+        listSel.appendChild(o);
+      }
+      listSel.classList.remove('hidden');
+    };
+    const go = document.createElement('button');
+    go.textContent = 'Tạo thẻ';
+    go.onclick = async () => {
+      if (!listSel.value) { toast('Chọn board và cột trước'); return; }
+      const r = await api(`/inbox/${item.id}/convert`, { method: 'POST', body: { list_id: Number(listSel.value) } });
+      toast('Đã tạo thẻ trên board');
+      $('inboxPanel').classList.add('hidden');
+      location.hash = '#c/' + r.id;
+      applyHash();
+    };
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.onclick = async () => { await api('/inbox/' + item.id, { method: 'DELETE' }); openInbox(); };
+    row2.append(date, boardSel, listSel, go, del);
+    row.append(txt, row2);
+    p.appendChild(row);
+  }
+  input.focus();
+}
+$('inboxBtn').onclick = () => {
+  if ($('inboxPanel').classList.contains('hidden')) openInbox();
+  else $('inboxPanel').classList.add('hidden');
+};
+
+/* ---------- Planner tuần 🗓 ---------- */
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function showPlanner() {
+  currentBoardId = null;
+  boardData = null;
+  setHash('#planner');
+  watchBoard(null);
+  for (const id of ['boardsView', 'boardView', 'calendarView']) $(id).classList.add('hidden');
+  for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn']) $(id).classList.add('hidden');
+  $('boardTitle').textContent = '› Planner của tôi';
+  delete document.body.dataset.bg;
+  $('plannerView').classList.remove('hidden');
+  renderPlanner();
+}
+
+async function renderPlanner() {
+  if (!plannerWeekStart) {
+    const now = new Date();
+    plannerWeekStart = new Date(now);
+    plannerWeekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // thứ 2
+  }
+  const data = await api('/planner');
+  const root = $('plannerView');
+  root.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'cal-head';
+  const prev = document.createElement('button');
+  prev.textContent = '‹';
+  prev.onclick = () => { plannerWeekStart.setDate(plannerWeekStart.getDate() - 7); renderPlanner(); };
+  const next = document.createElement('button');
+  next.textContent = '›';
+  next.onclick = () => { plannerWeekStart.setDate(plannerWeekStart.getDate() + 7); renderPlanner(); };
+  const todayBtn = document.createElement('button');
+  todayBtn.textContent = 'Tuần này';
+  todayBtn.onclick = () => { plannerWeekStart = null; renderPlanner(); };
+  const title = document.createElement('b');
+  const weekEnd = new Date(plannerWeekStart); weekEnd.setDate(weekEnd.getDate() + 6);
+  title.textContent = `🗓 Tuần ${isoDate(plannerWeekStart).slice(8)}/${plannerWeekStart.getMonth() + 1} – ${isoDate(weekEnd).slice(8)}/${weekEnd.getMonth() + 1}`;
+  head.append(prev, title, next, todayBtn);
+  root.appendChild(head);
+
+  const layout = document.createElement('div');
+  layout.className = 'plan-layout';
+
+  // Cột trái: thẻ của tôi (kéo vào ngày)
+  const side = document.createElement('div');
+  side.className = 'plan-side';
+  const h4 = document.createElement('h4');
+  h4.textContent = 'THẺ CỦA TÔI — kéo vào ngày để xếp lịch';
+  side.appendChild(h4);
+  const slotted = new Set(data.slots.map(s => s.card_id));
+  for (const c of data.myCards.filter(c => !slotted.has(c.id))) {
+    const chip = document.createElement('div');
+    chip.className = 'plan-chip';
+    chip.draggable = true;
+    chip.textContent = c.title;
+    const src = document.createElement('div');
+    src.className = 'src';
+    src.textContent = `${c.board_title} › ${c.list_title}` + (c.due_date ? ` · hạn ${c.due_date.split('-').reverse().slice(0, 2).join('/')}` : '');
+    chip.appendChild(src);
+    chip.ondragstart = e => e.dataTransfer.setData('text/card', String(c.id));
+    chip.onclick = () => { location.hash = '#c/' + c.id; applyHash(); };
+    side.appendChild(chip);
+  }
+  layout.appendChild(side);
+
+  // Lưới 7 ngày
+  const grid = document.createElement('div');
+  grid.className = 'plan-grid';
+  const todayStr = isoDate(new Date());
+  const slotsByDate = {};
+  for (const s of data.slots) (slotsByDate[s.date] = slotsByDate[s.date] || []).push(s);
+  const inboxByDate = {};
+  for (const i of data.inbox) (inboxByDate[i.date] = inboxByDate[i.date] || []).push(i);
+  const DOW = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(plannerWeekStart);
+    day.setDate(plannerWeekStart.getDate() + i);
+    const iso = isoDate(day);
+    const cell = document.createElement('div');
+    cell.className = 'plan-day' + (iso === todayStr ? ' today' : '');
+    const dh = document.createElement('div');
+    dh.className = 'dh';
+    dh.textContent = `${DOW[i]} ${day.getDate()}/${day.getMonth() + 1}`;
+    cell.appendChild(dh);
+    cell.ondragover = e => { e.preventDefault(); cell.classList.add('dragover'); };
+    cell.ondragleave = () => cell.classList.remove('dragover');
+    cell.ondrop = async e => {
+      e.preventDefault();
+      cell.classList.remove('dragover');
+      const cardId = e.dataTransfer.getData('text/card');
+      if (cardId) { await api('/planner', { method: 'PUT', body: { card_id: Number(cardId), date: iso } }); renderPlanner(); }
+    };
+    for (const s of slotsByDate[iso] || []) {
+      const slot = document.createElement('div');
+      slot.className = 'plan-slot' + (s.due_complete ? ' done' : '');
+      slot.draggable = true;
+      slot.ondragstart = e => e.dataTransfer.setData('text/card', String(s.card_id));
+      const span = document.createElement('span');
+      span.textContent = s.title;
+      span.title = `${s.board_title} › ${s.list_title}`;
+      span.onclick = () => { location.hash = '#c/' + s.card_id; applyHash(); };
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.title = 'Bỏ khỏi lịch';
+      del.onclick = async () => { await api('/planner/' + s.card_id, { method: 'DELETE' }); renderPlanner(); };
+      slot.append(span, del);
+      cell.appendChild(slot);
+    }
+    for (const it of inboxByDate[iso] || []) {
+      const slot = document.createElement('div');
+      slot.className = 'plan-slot inbox-slot';
+      const span = document.createElement('span');
+      span.textContent = '📥 ' + it.text;
+      span.title = 'Việc trong Inbox — mở Inbox để chuyển thành thẻ';
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.title = 'Bỏ ngày';
+      del.onclick = async () => { await api('/inbox/' + it.id, { method: 'PATCH', body: { date: '' } }); renderPlanner(); };
+      slot.append(span, del);
+      cell.appendChild(slot);
+    }
+    grid.appendChild(cell);
+  }
+  layout.appendChild(grid);
+  root.appendChild(layout);
+}
+$('plannerBtn').onclick = showPlanner;
+
 /* ---------- Menu board (nền, automation, lưu trữ, hoạt động) ---------- */
 $('menuBtn').onclick = () => openBoardMenu('main');
 $('starBtn').onclick = async () => {
@@ -1070,6 +1520,7 @@ async function openBoardMenu(view) {
     const items = [
       ['🎨 Đổi phông nền', () => openBoardMenu('background')],
       ['⚡ Automation (khi thẻ vào cột…)', () => openBoardMenu('rules')],
+      ['🔌 Tiện ích (Power-ups)', () => openBoardMenu('powerups')],
       ['🗃 Mục lưu trữ', () => openBoardMenu('archive')],
       ['📜 Hoạt động của board', () => openBoardMenu('activity')],
       ['🚪 Đóng board này', async () => {
@@ -1187,6 +1638,39 @@ async function openBoardMenu(view) {
       openBoardMenu('rules');
     };
     p.appendChild(addBtn);
+  }
+  if (view === 'powerups') {
+    const p = panelFrame('Tiện ích (Power-ups)', 'main');
+    const intro = document.createElement('p');
+    intro.style.cssText = 'font-size:13px;color:var(--muted)';
+    intro.textContent = 'Bật thêm tiện ích cho riêng board này — như Power-Ups của Trello.';
+    p.appendChild(intro);
+    const pu = powerups();
+    const defs = [
+      ['vote', '👍 Vote trên thẻ', 'Mọi người bình chọn ý tưởng — hợp cột Ý tưởng'],
+      ['wip', '🚦 Giới hạn WIP mỗi cột', 'Bấm vào số đếm trên cột để đặt giới hạn; vượt là đỏ'],
+      ['ai', '✨ Trợ lý AI trong thẻ', aiEnabled ? 'Tóm tắt thẻ, viết mô tả, gợi ý checklist' : 'Máy chủ chưa cấu hình ANTHROPIC_API_KEY — bật sẽ chưa có tác dụng'],
+    ];
+    for (const [key, label, desc] of defs) {
+      const row = document.createElement('label');
+      row.style.cssText = 'font-weight:400;color:var(--text);display:block;padding:8px;border-radius:8px;background:var(--bg);margin-bottom:8px;cursor:pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.style.width = 'auto';
+      cb.checked = !!pu[key];
+      cb.onchange = async () => {
+        const next = { ...powerups(), [key]: cb.checked };
+        await api('/boards/' + currentBoardId, { method: 'PATCH', body: { powerups: next } });
+        boardData.board.powerups = JSON.stringify(next);
+        render();
+      };
+      row.append(cb, document.createTextNode(' ' + label));
+      const d = document.createElement('div');
+      d.style.cssText = 'font-size:12px;color:var(--muted);margin-left:22px';
+      d.textContent = desc;
+      row.appendChild(d);
+      p.appendChild(row);
+    }
   }
   if (view === 'archive') {
     const p = panelFrame('Mục lưu trữ', 'main');
@@ -1325,6 +1809,7 @@ document.addEventListener('click', e => {
   if (!e.target.isConnected) return; // phần tử vừa bị re-render tách khỏi DOM — không phải bấm ra ngoài
   if (!$('searchWrap').contains(e.target)) $('searchResults').classList.add('hidden');
   if (!$('filterPop').contains(e.target) && e.target !== $('filterBtn')) $('filterPop').classList.add('hidden');
+  if (!$('notifWrap').contains(e.target)) $('notifPop').classList.add('hidden');
 });
 
 /* ---------- Chi tiết thẻ ---------- */
@@ -1334,10 +1819,23 @@ let deletedChecklist = [];
 
 function openCardDialog(c) {
   editingCard = c;
+  setHash('#c/' + c.id);
   $('fTitle').value = c.title;
   $('fDesc').value = c.description || '';
   $('fDue').value = c.due_date || '';
   $('fDueDone').checked = !!c.due_complete;
+
+  // Đợt 2: AI, vote
+  $('aiSection').classList.toggle('hidden', !(aiEnabled && powerups().ai));
+  $('aiOut').classList.add('hidden');
+  $('aiOut').textContent = '';
+  const voteBtn = $('voteCard');
+  voteBtn.classList.toggle('hidden', !powerups().vote);
+  const refreshVoteBtn = () => {
+    const n = (boardData.voteCounts?.find(x => x.card_id === c.id) || {}).n || 0;
+    voteBtn.textContent = (boardData.myVotes?.includes(c.id) ? '👍 Đã vote' : '👍 Vote') + (n ? ` (${n})` : '');
+  };
+  refreshVoteBtn();
 
   // Ảnh bìa
   const coverEl = $('fCover');
@@ -1354,6 +1852,15 @@ function openCardDialog(c) {
     b.style.background = color;
     b.dataset.color = color;
     if (c.cover === color) b.classList.add('on');
+    b.onclick = () => { [...coverEl.children].forEach(x => x.classList.remove('on')); b.classList.add('on'); };
+    coverEl.appendChild(b);
+  }
+  if (c.cover && c.cover.startsWith('url:')) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'imgcover on';
+    b.textContent = '🖼 Ảnh hiện tại';
+    b.dataset.color = c.cover;
     b.onclick = () => { [...coverEl.children].forEach(x => x.classList.remove('on')); b.classList.add('on'); };
     coverEl.appendChild(b);
   }
@@ -1488,13 +1995,24 @@ async function loadAttachments(cardId) {
     a.href = at.url;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
-    a.textContent = '📎 ' + at.name;
+    a.textContent = (at.url.startsWith('/u/') ? '📄 ' : '📎 ') + at.name;
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'del';
     del.textContent = '✕';
     del.onclick = async () => { await api('/attachments/' + at.id, { method: 'DELETE' }); loadAttachments(cardId); };
-    row.append(a, del);
+    if (/\.(png|jpe?g|gif|webp)$/i.test(at.url)) {
+      const cov = document.createElement('button');
+      cov.type = 'button';
+      cov.className = 'del';
+      cov.textContent = '🖼';
+      cov.title = 'Đặt làm ảnh bìa';
+      cov.onclick = async () => {
+        await api('/cards/' + cardId, { method: 'PATCH', body: { cover: 'url:' + at.url } });
+        toast('Đã đặt ảnh bìa');
+      };
+      row.append(a, cov, del);
+    } else row.append(a, del);
     wrap.appendChild(row);
   }
 }
@@ -1554,6 +2072,73 @@ $('cardForm').addEventListener('submit', async () => {
   editingCard = null;
 });
 $('closeCard').onclick = () => { editingCard = null; deletedChecklist = []; $('cardDialog').close(); };
+// Đóng dialog bằng bất cứ cách nào (Esc, nút, lưu) → trả hash về board
+$('cardDialog').addEventListener('close', () => {
+  if (lastHash.startsWith('#c/')) setHash(currentBoardId ? '#b/' + currentBoardId : '');
+});
+
+$('linkCard').onclick = async () => {
+  if (!editingCard) return;
+  const url = location.origin + location.pathname + '#c/' + editingCard.id;
+  try { await navigator.clipboard.writeText(url); toast('Đã chép link thẻ — dán vào chat để chia sẻ'); }
+  catch { prompt('Chép link thẻ:', url); }
+};
+
+$('voteCard').onclick = async () => {
+  if (!editingCard) return;
+  const r = await api(`/cards/${editingCard.id}/vote`, { method: 'POST' });
+  if (r.voted) boardData.myVotes.push(editingCard.id);
+  else boardData.myVotes = boardData.myVotes.filter(id => id !== editingCard.id);
+  const vc = boardData.voteCounts.find(x => x.card_id === editingCard.id);
+  if (vc) vc.n = r.count;
+  else boardData.voteCounts.push({ card_id: editingCard.id, n: r.count });
+  const n = r.count;
+  $('voteCard').textContent = (r.voted ? '👍 Đã vote' : '👍 Vote') + (n ? ` (${n})` : '');
+};
+
+/* ---------- Upload file đính kèm ---------- */
+$('uploadBtn').onclick = () => $('uploadInput').click();
+$('uploadInput').onchange = async () => {
+  const file = $('uploadInput').files[0];
+  if (!file || !editingCard) return;
+  if (file.size > 25 * 1024 * 1024) { toast('File tối đa 25MB'); return; }
+  $('uploadBtn').textContent = '⏳ Đang tải…';
+  $('uploadBtn').disabled = true;
+  try {
+    const res = await fetch(`/api/cards/${editingCard.id}/upload?name=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Tải lên thất bại');
+    toast('Đã tải file lên');
+    loadAttachments(editingCard.id);
+  } catch (e) { toast(e.message); }
+  $('uploadBtn').textContent = '📤 Tải file';
+  $('uploadBtn').disabled = false;
+  $('uploadInput').value = '';
+};
+
+/* ---------- Trợ lý AI trong thẻ ---------- */
+async function runAI(action, apply) {
+  if (!editingCard) return;
+  const out = $('aiOut');
+  out.classList.remove('hidden');
+  out.textContent = '✨ Đang nghĩ…';
+  try {
+    const { text } = await api(`/ai/card/${editingCard.id}`, { method: 'POST', body: { action } });
+    apply ? apply(text) : (out.textContent = text);
+    if (apply) out.classList.add('hidden');
+  } catch (e) { out.textContent = '⚠ ' + e.message; }
+}
+$('aiSummary').onclick = () => runAI('summary');
+$('aiDescribe').onclick = () => runAI('describe', text => { $('fDesc').value = text; toast('Đã điền mô tả — sửa lại rồi bấm Lưu'); });
+$('aiChecklist').onclick = () => runAI('checklist', text => {
+  const items = text.split('\n').map(s => s.replace(/^[-*\d.\s]+/, '').trim()).filter(Boolean).slice(0, 7);
+  renderChecklistEditor([...editChecklist, ...items.map(t => ({ text: t, checked: false }))]);
+  toast('Đã thêm gợi ý vào checklist — bấm Lưu để ghi');
+});
 $('copyCard').onclick = async () => {
   if (!editingCard) return;
   await api(`/cards/${editingCard.id}/copy`, { method: 'POST', body: {} });

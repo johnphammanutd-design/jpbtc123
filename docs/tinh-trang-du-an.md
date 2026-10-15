@@ -73,9 +73,21 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
 2. Gửi đội `docs/huong-dan-su-dung-cho-doi.md` + link https://task.kairetic.com.
 3. **Pilot 2 tuần** với 1 nhóm, đo 3 số: % task nằm trên board; % thẻ có người
    phụ trách + hạn; số task trễ hạn (dùng Nhật ký hoạt động + bộ lọc có sẵn).
-4. Sau pilot mới quyết tính năng đợt 2 theo nhu cầu thật. Ứng viên:
-   thông báo khi được gán việc (đẩy/email), upload file trực tiếp (hiện dùng link),
-   chế độ xem Timeline/Table, kéo-thả sắp xếp cột, board riêng tư theo nhóm.
+4. ~~Sau pilot mới quyết tính năng đợt 2.~~ **User quyết làm đợt 2 ngay 16/10/2026**
+   (bỏ nguyên tắc chờ pilot). Đã xây và test local (REA PASS), gồm:
+   - **Thông báo 🔔**: chuông + số chưa đọc; sự kiện gán việc, @mention trong bình luận
+     (@tên-đăng-nhập), bình luận vào thẻ mình tham gia, thẻ bị chuyển cột, nhắc hạn
+     (quét mỗi giờ: đến hạn hôm nay/mai + trễ ≤3 ngày, mỗi thẻ+ngày nhắc 1 lần); realtime qua WS kênh user.
+   - **URL riêng từng thẻ**: `#c/<id>` (nút 🔗 Link trong thẻ), `#b/<id>` cho board, `#planner`.
+   - **Upload file**: nút 📤 trong thẻ (≤25MB, lưu `/data/uploads`, tên file ngẫu nhiên không đoán được;
+     HTML/SVG bị ép tải về chống XSS); ảnh đầu tiên tự thành ảnh bìa; nút 🖼 đặt ảnh bìa từ đính kèm.
+   - **Inbox 📥**: thu việc cá nhân nhanh, đặt ngày (hiện trong Planner), chuyển thành thẻ trên board.
+   - **Planner 🗓**: lịch tuần cá nhân, kéo thẻ của mình vào ngày (HTML5 DnD), đổi tuần, bỏ lịch.
+   - **AI ✨** (cần `ANTHROPIC_API_KEY` trong `app/.env`, model mặc định claude-haiku-5-5):
+     tóm tắt thẻ, viết mô tả, gợi ý checklist — server-side, nút tự ẩn khi chưa có key.
+   - **Power-ups 🔌 per board** (Menu → Tiện ích): 👍 Vote trên thẻ, 🚦 giới hạn WIP mỗi cột
+     (bấm số đếm để đặt, vượt là đỏ), bật/tắt AI.
+   Còn lại cho đợt sau: Table/Timeline view, kéo-thả sắp xếp cột, board riêng tư, quick edit, phím tắt.
    User cũng dự định gửi video/ảnh giao diện mẫu để tinh chỉnh animation thêm.
 
 ## Ghi chú cho phiên Claude kế tiếp
