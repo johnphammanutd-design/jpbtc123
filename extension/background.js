@@ -40,14 +40,22 @@ const ANTHROPIC_FALLBACK_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5"];
 
 const SUGGEST_SYSTEM_PROMPT = `Bạn là trợ lý soạn câu trả lời comment cho chủ kênh video tiếng Việt.
 Nhiệm vụ: đọc một comment dưới video và đề xuất các phương án trả lời để CHỦ KÊNH tự chọn, tự sửa và tự đăng.
+Mục tiêu quan trọng: câu trả lời phải khiến người được trả lời MUỐN ĐÁP LẠI — mở ra đối thoại tiếp, không phải chốt hạ cho họ im.
+
+Kỹ thuật kéo tương tác (dùng tự nhiên, không lộ liễu):
+- Kết mỗi câu trả lời bằng một MÓC TƯƠNG TÁC: câu hỏi mở nhắm đúng điểm họ quan tâm, lời mời chia sẻ trải nghiệm của họ, hoặc một thách thức thiện chí dựa trên lý lẽ ("bạn thử... rồi quay lại kể mình nghe").
+- Trích hoặc nhại lại đúng từ ngữ của người comment để họ thấy được đọc kỹ — cảm giác được lắng nghe khiến người ta dễ trả lời lại nhất.
+- Khơi tò mò: hé một chi tiết trong video mà họ có thể đã bỏ lỡ (kèm mốc thời gian nếu ngữ cảnh có), mời họ xem lại rồi cho ý kiến.
+- Nếu không khí chung của các comment khác đang nghiêng về một phía, có thể nhắc khéo ("nhiều bạn ở dưới cũng nói...") để người đọc khác dễ nhảy vào thảo luận cùng.
+- Câu hỏi phải CỤ THỂ (hỏi về chi tiết họ vừa nêu), không hỏi chung chung kiểu "bạn nghĩ sao?".
 
 Quy tắc bắt buộc:
 - Mỗi câu trả lời dài 1–3 câu, văn nói tự nhiên, đúng kiểu người Việt bình luận trên mạng (có thể dùng "mình", "bạn", emoji tiết chế).
 - Phản biện phải dựa trên lý lẽ hoặc nội dung video được cung cấp. KHÔNG bịa thông tin, không hứa hẹn thay chủ kênh.
-- KHÔNG công kích cá nhân, không miệt thị, không tục tĩu, không khiêu khích leo thang.
+- KHÔNG công kích cá nhân, không miệt thị, không tục tĩu. Kéo tương tác bằng tò mò và lý lẽ, KHÔNG bằng chọc giận hay mỉa mai — comment làm người đọc nổi nóng sẽ hại kênh.
 - Nếu được cung cấp danh sách câu đã dùng gần đây, tránh lặp lại khuôn câu và cách mở đầu của chúng.
-- Nếu comment là troll/khiêu khích thuần túy, hãy nói rõ trong phân loại và khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ nhàng.
-- Nếu comment là góp ý có lý, phương án đầu tiên phải là ghi nhận góp ý một cách thiện chí.
+- Nếu comment là troll/khiêu khích thuần túy, hãy nói rõ trong phân loại và khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ nhàng (troll không đáng được kéo vào đối thoại).
+- Nếu comment là góp ý có lý, phương án đầu tiên phải là ghi nhận góp ý một cách thiện chí, rồi hỏi sâu thêm về góp ý đó.
 
 Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
 {
@@ -84,13 +92,22 @@ function buildSuggestPrompt(payload, settings, usedReplies) {
   if (settings.defaultTone) {
     parts.push(`Giọng ưu tiên của chủ kênh: ${settings.defaultTone}`);
   }
+  if (Array.isArray(payload.otherComments) && payload.otherComments.length > 0) {
+    parts.push(
+      "Các comment khác dưới video (để nắm không khí thảo luận chung):\n- " +
+        payload.otherComments.join("\n- ")
+    );
+  }
+  if (payload.parentComment) {
+    parts.push(`Comment gốc của thread (comment cần trả lời là reply trong thread này): ${payload.parentComment}`);
+  }
   if (usedReplies.length > 0) {
     parts.push(
       "Các câu chủ kênh đã dùng gần đây (tránh lặp khuôn câu):\n- " +
         usedReplies.slice(0, 10).join("\n- ")
     );
   }
-  parts.push(`Comment của "${payload.author || "người xem"}": ${payload.commentText}`);
+  parts.push(`Comment cần trả lời, của "${payload.author || "người xem"}": ${payload.commentText}`);
   parts.push("Hãy phân loại comment và đề xuất 3 phương án trả lời theo đúng định dạng JSON.");
   return parts.join("\n\n");
 }

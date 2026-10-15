@@ -155,6 +155,34 @@
     commentEl.appendChild(panel);
   }
 
+  // Gom các comment khác dưới video làm ngữ cảnh (không khí thảo luận chung),
+  // bỏ qua chính comment đang được trả lời.
+  function getOtherComments(currentEl, limit = 8) {
+    const others = [];
+    for (const el2 of allCommentEls()) {
+      if (el2 === currentEl || others.length >= limit) continue;
+      const data = getCommentData(el2);
+      if (data.commentText) {
+        others.push(
+          `${data.author ? data.author + ": " : ""}${data.commentText.slice(0, 200)}`
+        );
+      }
+    }
+    return others;
+  }
+
+  // Nếu comment là reply trong một thread, lấy comment gốc của thread đó.
+  function getParentComment(commentEl) {
+    const thread = commentEl.closest("ytd-comment-thread-renderer");
+    if (!thread) return "";
+    const rootEl = thread.querySelector("ytd-comment-view-model, ytd-comment-renderer");
+    if (!rootEl || rootEl === commentEl) return "";
+    const data = getCommentData(rootEl);
+    return data.commentText
+      ? `${data.author ? data.author + ": " : ""}${data.commentText.slice(0, 300)}`
+      : "";
+  }
+
   async function onSuggestClick(commentEl, button) {
     const data = getCommentData(commentEl);
     if (!data.commentText) {
@@ -166,7 +194,12 @@
     try {
       const response = await ext.runtime.sendMessage({
         type: "suggest",
-        payload: { ...data, ...getVideoContext() }
+        payload: {
+          ...data,
+          ...getVideoContext(),
+          otherComments: getOtherComments(commentEl),
+          parentComment: getParentComment(commentEl)
+        }
       });
       if (response?.ok) {
         renderSuggestions(commentEl, response.result);

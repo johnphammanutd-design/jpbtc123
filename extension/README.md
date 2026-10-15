@@ -56,6 +56,17 @@ extension/
 
 Với comment troll thuần túy, AI sẽ khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ.
 
+### Tối ưu kéo tương tác (v0.2.0)
+
+Mỗi câu gợi ý được soạn để người nhận **muốn trả lời lại**: kết bằng móc tương
+tác (câu hỏi mở nhắm đúng điểm họ quan tâm, lời mời chia sẻ trải nghiệm, thách
+thức thiện chí), trích lại từ ngữ của chính họ để tạo cảm giác được lắng nghe,
+và khơi tò mò về chi tiết trong video họ có thể đã bỏ lỡ. Để làm được việc đó,
+extension gửi kèm ngữ cảnh đầy đủ: tiêu đề + mô tả video, tối đa 8 comment khác
+dưới video (không khí thảo luận chung) và comment gốc của thread nếu đang trả
+lời một reply. Kéo tương tác bằng tò mò và lý lẽ — không dùng chọc giận/mỉa mai,
+vì comment làm người đọc nổi nóng dễ bị report và hại đề xuất của kênh.
+
 ### Quét comment trái chiều
 
 Trên trang xem video có nút nổi **🔍 Quét comment trái chiều** (góc phải dưới):
