@@ -3,9 +3,9 @@ const ext = typeof browser !== "undefined" ? browser : chrome;
 // Danh sách model phải khớp với PROVIDERS trong background.js.
 const PROVIDER_MODELS = {
   anthropic: [
-    ["claude-opus-5-5", "Claude Opus 5.5 — chất lượng cao nhất ($4/$20 mỗi 1M token)"],
-    ["claude-sonnet-5-5", "Claude Sonnet 5.5 — nhanh, rẻ hơn ($2/$10)"],
-    ["claude-haiku-4-5", "Claude Haiku 4.5 — rẻ nhất nhà Claude ($1/$5)"]
+    ["claude-haiku-4-5", "Claude Haiku 4.5 — rẻ nhất nhà Claude ($1/$5 mỗi 1M token, mặc định)"],
+    ["claude-sonnet-5-5", "Claude Sonnet 5.5 — cân bằng giá/chất lượng ($2/$10)"],
+    ["claude-opus-5-5", "Claude Opus 5.5 — chất lượng cao nhất ($4/$20)"]
   ],
   openai: [
     ["gpt-5-nano", "GPT-5 nano — rẻ nhất thị trường ($0.05/$0.40)"],

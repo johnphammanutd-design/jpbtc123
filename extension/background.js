@@ -13,8 +13,8 @@ const USED_HISTORY_LIMIT = 30;
 // Giá tham khảo 10/2026 (USD / 1M token input|output) ghi trong README.
 const PROVIDERS = {
   anthropic: {
-    defaultModel: "claude-opus-5-5",
-    models: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"],
+    defaultModel: "claude-haiku-4-5",
+    models: ["claude-haiku-4-5", "claude-sonnet-5-5", "claude-opus-5-5"],
     url: "https://api.anthropic.com/v1/messages"
   },
   openai: {

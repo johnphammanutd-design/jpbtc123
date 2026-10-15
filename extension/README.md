@@ -88,19 +88,19 @@ cho **1.000 lần gợi ý** theo từng API (USD, giá /1M token input|output):
 
 | API | Giá input | Giá output | ~1.000 lần gợi ý |
 |---|---|---|---|
-| **Claude Opus 5.5** (mặc định) | $4.00 | $20.00 | ~$9.80 |
+| **Claude Haiku 4.5** (mặc định) | $1.00 | $5.00 | ~$2.45 |
 | Claude Sonnet 5.5 | $2.00 | $10.00 | ~$4.90 |
-| Claude Haiku 4.5 | $1.00 | $5.00 | ~$2.45 |
+| Claude Opus 5.5 | $4.00 | $20.00 | ~$9.80 |
 | OpenAI GPT-5 nano | $0.05 | $0.40 | **~$0.16** |
 | Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | ~$0.22 |
 | DeepSeek chat (v4-flash) | $0.14 | $0.28 | ~$0.24 |
 
-Mặc định là **Claude Opus 5.5**: tài khoản có API credit hàng tháng của Anthropic
-(ví dụ $200/tháng kèm gói Max) thì dùng Claude trong hạn mức đó không tốn thêm
-tiền — $200 tương đương ~20.000 lần gợi ý Opus 5.5 hoặc ~40.000 lần Sonnet 5.5
-mỗi tháng. Không có credit và muốn rẻ nhất tuyệt đối: chọn OpenAI GPT-5 nano
-trong trang Cài đặt — đổi nhà cung cấp chỉ là một dropdown, key của từng nhà
-được lưu riêng.
+Mặc định là **Claude Haiku 4.5** — model rẻ nhất nhà Claude: tài khoản có API
+credit hàng tháng của Anthropic (ví dụ $200/tháng kèm gói Max) thì $200 tương
+đương ~80.000 lần gợi ý mỗi tháng. Cần văn phong mượt hơn thì nâng lên Sonnet
+5.5 hoặc Opus 5.5; không có credit và muốn rẻ nhất tuyệt đối thì chọn OpenAI
+GPT-5 nano — đổi model/nhà cung cấp chỉ là một dropdown trong trang Cài đặt,
+key của từng nhà được lưu riêng.
 
 ## Ghi chú kỹ thuật
 
