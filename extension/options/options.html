@@ -53,6 +53,28 @@
       cursor: pointer;
     }
     #status { margin-left: 12px; font-size: 13px; color: var(--accent); }
+    h2 { font-size: 15px; margin: 26px 0 6px; }
+    .usage-row { display: flex; gap: 16px; }
+    .usage-row > div { flex: 1; }
+    .cost-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .cost-table th, .cost-table td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    }
+    .cost-table th { font-size: 12px; opacity: 0.7; }
+    .cost-table tbody tr { cursor: pointer; }
+    .cost-table tbody tr:hover { background: rgba(62, 166, 255, 0.08); }
+    .cost-table tbody tr.selected {
+      background: rgba(62, 166, 255, 0.15);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
     .box {
       margin-top: 24px;
       padding: 10px 14px;
@@ -82,6 +104,25 @@
   <label for="model">Model</label>
   <p class="hint">Giá ghi theo USD cho mỗi 1 triệu token (input/output), cập nhật 10/2026.</p>
   <select id="model"></select>
+
+  <h2>Ước tính chi phí theo mức dùng của bạn</h2>
+  <div class="usage-row">
+    <div>
+      <label for="suggestsPerDay">Lần gợi ý / ngày</label>
+      <input id="suggestsPerDay" type="number" min="0" max="10000" value="50" />
+    </div>
+    <div>
+      <label for="scansPerDay">Lần quét comment / ngày</label>
+      <input id="scansPerDay" type="number" min="0" max="1000" value="10" />
+    </div>
+  </div>
+  <p class="hint">Mỗi gợi ý ≈ 1.200 token vào + 250 token ra; mỗi lần quét 30 comment ≈ 2.000 + 400. Bảng dưới xếp từ rẻ đến đắt — <b>bấm vào một dòng để chọn model đó</b>.</p>
+  <table class="cost-table">
+    <thead>
+      <tr><th>Model</th><th>1 lần gợi ý</th><th>Chi phí / tháng</th><th>Ghi chú</th></tr>
+    </thead>
+    <tbody id="costRows"></tbody>
+  </table>
 
   <label for="defaultTone">Giọng ưu tiên</label>
   <p class="hint">AI vẫn đưa 3 phương án, nhưng sẽ chăm chút nhất cho giọng này.</p>
