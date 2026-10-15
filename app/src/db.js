@@ -68,6 +68,109 @@ CREATE INDEX IF NOT EXISTS idx_checklist_card ON checklist_items(card_id);
 CREATE INDEX IF NOT EXISTS idx_comments_card ON comments(card_id);
 `);
 
+/* ---------- Migration v2: bộ tính năng Trello đầy đủ ---------- */
+
+const hasColumn = (table, col) =>
+  db.prepare(`PRAGMA table_info(${table})`).all().some(r => r.name === col);
+
+if (!hasColumn('boards', 'background'))
+  db.exec("ALTER TABLE boards ADD COLUMN background TEXT NOT NULL DEFAULT 'blue'");
+if (!hasColumn('boards', 'closed'))
+  db.exec('ALTER TABLE boards ADD COLUMN closed INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('lists', 'archived'))
+  db.exec('ALTER TABLE lists ADD COLUMN archived INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('cards', 'cover'))
+  db.exec("ALTER TABLE cards ADD COLUMN cover TEXT NOT NULL DEFAULT ''");
+if (!hasColumn('cards', 'due_complete'))
+  db.exec('ALTER TABLE cards ADD COLUMN due_complete INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('cards', 'archived'))
+  db.exec('ALTER TABLE cards ADD COLUMN archived INTEGER NOT NULL DEFAULT 0');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS labels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL,
+  position REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS card_labels (
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  label_id INTEGER NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+  PRIMARY KEY (card_id, label_id)
+);
+CREATE TABLE IF NOT EXISTS card_members (
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (card_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS activity (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  card_id INTEGER REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  type TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS automation_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  trigger_list_id INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  actions TEXT NOT NULL DEFAULT '{}',
+  enabled INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS board_stars (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, board_id)
+);
+CREATE INDEX IF NOT EXISTS idx_labels_board ON labels(board_id);
+CREATE INDEX IF NOT EXISTS idx_activity_board ON activity(board_id, id);
+CREATE INDEX IF NOT EXISTS idx_activity_card ON activity(card_id, id);
+CREATE INDEX IF NOT EXISTS idx_attachments_card ON attachments(card_id);
+`);
+
+// Bảng màu nhãn mặc định của board (trùng bảng màu Trello)
+export const DEFAULT_LABEL_COLORS = ['#61bd4f', '#f2d600', '#ff9f1a', '#eb5a46', '#c377e0', '#0079bf'];
+
+export function ensureBoardLabels(boardId) {
+  const n = db.prepare('SELECT COUNT(*) AS n FROM labels WHERE board_id = ?').get(boardId).n;
+  if (n > 0) return;
+  const ins = db.prepare('INSERT INTO labels (board_id, name, color, position) VALUES (?, ?, ?, ?)');
+  DEFAULT_LABEL_COLORS.forEach((color, i) => ins.run(boardId, '', color, (i + 1) * 1024));
+}
+
+// Dữ liệu cũ: labels JSON theo chỉ số màu → bảng card_labels; assignee đơn → card_members
+const migrated = db.prepare("SELECT COUNT(*) AS n FROM card_labels").get().n;
+if (migrated === 0) {
+  const boards = db.prepare('SELECT id FROM boards').all();
+  for (const b of boards) ensureBoardLabels(b.id);
+  const cards = db.prepare("SELECT id, list_id, labels, assignee_id FROM cards WHERE labels != '[]' OR assignee_id IS NOT NULL").all();
+  const boardOf = db.prepare('SELECT board_id FROM lists WHERE id = ?');
+  const labelByIndex = db.prepare('SELECT id FROM labels WHERE board_id = ? ORDER BY position LIMIT 1 OFFSET ?');
+  const insCL = db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)');
+  const insCM = db.prepare('INSERT OR IGNORE INTO card_members (card_id, user_id) VALUES (?, ?)');
+  for (const c of cards) {
+    const boardId = boardOf.get(c.list_id)?.board_id;
+    if (!boardId) continue;
+    try {
+      for (const idx of JSON.parse(c.labels || '[]')) {
+        const label = labelByIndex.get(boardId, idx);
+        if (label) insCL.run(c.id, label.id);
+      }
+    } catch {}
+    if (c.assignee_id) insCM.run(c.id, c.assignee_id);
+  }
+}
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

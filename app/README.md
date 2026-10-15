@@ -1,8 +1,17 @@
 # Bảng công việc công ty (Kanban kiểu Trello)
 
-Hệ thống quản lý mục tiêu/task tự host cho đội ngũ 15–20 người: nhiều board dùng chung,
-kéo-thả thẻ giữa các cột, gán người phụ trách, hạn chót, nhãn màu, checklist, bình luận,
-và cập nhật **realtime** — người này kéo thẻ, màn hình người kia tự đổi theo.
+Hệ thống quản lý mục tiêu/task tự host cho đội ngũ 15–20 người, clone bộ tính năng Trello:
+
+- **Board**: nhiều board dùng chung, phông nền 8 màu, gắn sao, đóng/mở lại board
+- **Thẻ**: kéo-thả chuẩn Trello (thẻ nghiêng 4°, placeholder, FLIP animation), ảnh bìa,
+  nhãn có tên theo board, nhiều thành viên/thẻ (avatar), hạn chót + đánh dấu hoàn thành,
+  checklist, đính kèm link, bình luận, sao chép thẻ, lưu trữ/khôi phục
+- **Chế độ xem**: Bảng và **Lịch** theo hạn chót (tính năng Premium của Trello)
+- **Bộ lọc**: theo từ khóa, thành viên, nhãn, hạn (trễ/7 ngày/không hạn) + tìm kiếm toàn cục
+- **Automation kiểu Butler**: khi thẻ vào cột X → tự đánh dấu hoàn thành hạn, tick checklist,
+  gắn nhãn, gán người
+- **Nhật ký hoạt động**: theo board và theo thẻ (ai làm gì, lúc nào)
+- Cập nhật **realtime** — người này kéo thẻ, màn hình người kia tự đổi theo
 
 - Backend: Node.js + Express + SQLite (file duy nhất, tự sao lưu dễ dàng) + WebSocket
 - Frontend: 1 trang HTML thuần, không cần build
