@@ -67,7 +67,9 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
 
 ## Việc còn lại sau khi deploy (theo thứ tự)
 
-1. Đăng nhập admin → đổi mật khẩu → tạo tài khoản cho 15–20 thành viên.
+1. ~~Đăng nhập admin → đổi mật khẩu → tạo tài khoản cho 15–20 thành viên.~~
+   **Xong 16/10/2026** (user tự làm; file `/root/task-admin-login.txt` trên VPS
+   giờ chứa mật khẩu cũ, không còn giá trị).
 2. Gửi đội `docs/huong-dan-su-dung-cho-doi.md` + link https://task.kairetic.com.
 3. **Pilot 2 tuần** với 1 nhóm, đo 3 số: % task nằm trên board; % thẻ có người
    phụ trách + hạn; số task trễ hạn (dùng Nhật ký hoạt động + bộ lọc có sẵn).
