@@ -238,7 +238,10 @@ async function callAnthropic(apiKey, model, systemPrompt, userPrompt) {
   const headers = {
     "Content-Type": "application/json",
     "x-api-key": apiKey,
-    "anthropic-version": "2023-06-01"
+    "anthropic-version": "2023-06-01",
+    // Bắt buộc khi gọi API Anthropic trực tiếp từ trình duyệt (CORS).
+    // An toàn ở đây vì key do chính người dùng nhập và chỉ lưu trên máy họ.
+    "anthropic-dangerous-direct-browser-access": "true"
   };
   const body = {
     model,
