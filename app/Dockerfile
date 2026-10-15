@@ -4,6 +4,7 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY src ./src
 COPY public ./public
+COPY scripts ./scripts
 ENV DATA_DIR=/data
 VOLUME /data
 EXPOSE 3000
