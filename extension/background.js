@@ -57,6 +57,9 @@ Quy tắc bắt buộc:
 - Nếu comment là troll/khiêu khích thuần túy, hãy nói rõ trong phân loại và khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ nhàng (troll không đáng được kéo vào đối thoại).
 - Nếu comment là góp ý có lý, phương án đầu tiên phải là ghi nhận góp ý một cách thiện chí, rồi hỏi sâu thêm về góp ý đó.
 
+Ngôn ngữ: viết các câu trả lời (noi_dung) bằng đúng ngôn ngữ được yêu cầu trong phần ngữ cảnh;
+riêng "phan_loai" và "nhan_xet" luôn bằng tiếng Việt để chủ kênh đọc nhanh.
+
 Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
 {
   "phan_loai": "gop_y_co_ly" | "hieu_sai_noi_dung" | "che_vo_can_cu" | "troll",
@@ -67,6 +70,14 @@ Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào k
     { "giong": "lich_su", "noi_dung": "..." }
   ]
 }`;
+
+// Quy tắc văn phong khi trả lời bằng tiếng Anh Mỹ cho khán giả lớn tuổi.
+const EN_US_SENIOR_STYLE = `Viết các câu trả lời bằng TIẾNG ANH MỸ tự nhiên, phù hợp người đọc lớn tuổi (60+):
+- Giọng ấm áp, chân thành, tôn trọng — kiểu nói chuyện lịch thiệp của người Mỹ ("I appreciate you watching", "Thanks so much for sharing that").
+- Câu ngắn, từ ngữ đơn giản rõ ràng; KHÔNG dùng tiếng lóng internet hay viết tắt (lol, tbh, ngl, fr...), không mỉa mai kiểu Gen Z.
+- Tối đa 1 emoji đơn giản (🙂, 👍, ❤️) hoặc không dùng.
+- Móc tương tác hợp nhóm tuổi này: mời họ kể kỷ niệm hoặc kinh nghiệm của chính họ ("I'd love to hear...", "Did you ever..."), hỏi ý kiến của họ một cách trân trọng — người lớn tuổi rất thích được hỏi về trải nghiệm sống.
+- Xưng hô thân thiện mức vừa phải, không suồng sã.`;
 
 const CLASSIFY_SYSTEM_PROMPT = `Bạn là bộ phân loại comment cho chủ kênh video tiếng Việt.
 Với mỗi comment trong danh sách, xếp vào đúng một loại:
@@ -80,11 +91,42 @@ Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào k
 { "ket_qua": [ { "id": <số id của comment>, "phan_loai": "<loại>" } ] }
 Phải trả kết quả cho đủ mọi id được đưa vào.`;
 
+function languageInstruction(settings) {
+  switch (settings.replyLanguage) {
+    case "en-US":
+      return EN_US_SENIOR_STYLE_APPLIES(settings)
+        ? EN_US_SENIOR_STYLE
+        : "Viết các câu trả lời bằng tiếng Anh Mỹ tự nhiên.";
+    case "vi":
+      return "Viết các câu trả lời bằng tiếng Việt.";
+    default: // auto
+      return "Viết các câu trả lời bằng đúng ngôn ngữ của comment cần trả lời.";
+  }
+}
+
+// Áp dụng bộ quy tắc văn phong người lớn tuổi khi hồ sơ khán giả nhắc đến
+// người già/lớn tuổi/60+, hoặc khi không có hồ sơ (mặc định của kênh này).
+function EN_US_SENIOR_STYLE_APPLIES(settings) {
+  const a = (settings.audienceProfile || "").toLowerCase();
+  return (
+    a === "" ||
+    a.includes("60") ||
+    a.includes("lớn tuổi") ||
+    a.includes("người già") ||
+    a.includes("senior") ||
+    a.includes("elder")
+  );
+}
+
 function buildSuggestPrompt(payload, settings, usedReplies) {
   const parts = [];
   parts.push(`Tiêu đề video: ${payload.videoTitle || "(không rõ)"}`);
   if (payload.videoDescription) {
     parts.push(`Mô tả/ngữ cảnh video: ${payload.videoDescription.slice(0, 1500)}`);
+  }
+  parts.push(languageInstruction(settings));
+  if (settings.audienceProfile) {
+    parts.push(`Khán giả của kênh: ${settings.audienceProfile}`);
   }
   if (settings.voiceProfile) {
     parts.push(`Giọng của kênh (viết đúng chất này): ${settings.voiceProfile}`);
@@ -140,6 +182,8 @@ async function getSettings() {
     apiKeys: {},
     defaultTone: "",
     voiceProfile: "",
+    replyLanguage: "en-US",
+    audienceProfile: "Người Mỹ lớn tuổi, trên 60 tuổi",
     usedReplies: [],
     apiKey: "" // khóa Anthropic từ phiên bản đầu của extension
   });

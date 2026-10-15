@@ -128,6 +128,8 @@ async function load() {
     apiKeys: {},
     defaultTone: "",
     voiceProfile: "",
+    replyLanguage: "en-US",
+    audienceProfile: "Người Mỹ lớn tuổi, trên 60 tuổi",
     apiKey: "" // bản cũ chỉ có Anthropic
   });
   apiKeys = stored.apiKeys || {};
@@ -138,6 +140,8 @@ async function load() {
     : "anthropic";
   document.getElementById("defaultTone").value = stored.defaultTone;
   document.getElementById("voiceProfile").value = stored.voiceProfile;
+  document.getElementById("replyLanguage").value = stored.replyLanguage;
+  document.getElementById("audienceProfile").value = stored.audienceProfile;
   renderAll(stored.model);
 }
 
@@ -148,7 +152,9 @@ async function save() {
     model: document.getElementById("model").value,
     apiKeys,
     defaultTone: document.getElementById("defaultTone").value,
-    voiceProfile: document.getElementById("voiceProfile").value.trim()
+    voiceProfile: document.getElementById("voiceProfile").value.trim(),
+    replyLanguage: document.getElementById("replyLanguage").value,
+    audienceProfile: document.getElementById("audienceProfile").value.trim()
   });
   const status = document.getElementById("status");
   status.textContent = "Đã lưu ✓";

@@ -124,6 +124,18 @@
     <tbody id="costRows"></tbody>
   </table>
 
+  <label for="replyLanguage">Ngôn ngữ câu trả lời</label>
+  <p class="hint">Kênh có khán giả quốc tế thì chọn tiếng Anh Mỹ; "Tự động" sẽ trả lời bằng đúng ngôn ngữ của từng comment.</p>
+  <select id="replyLanguage">
+    <option value="en-US">Tiếng Anh (Mỹ) — mặc định</option>
+    <option value="auto">Tự động theo ngôn ngữ comment</option>
+    <option value="vi">Tiếng Việt</option>
+  </select>
+
+  <label for="audienceProfile">Khán giả của kênh</label>
+  <p class="hint">AI chỉnh văn phong theo nhóm khán giả này. Với "người trên 60 tuổi", câu trả lời sẽ ấm áp, lịch sự, câu ngắn rõ ràng, không tiếng lóng, và mời họ chia sẻ kỷ niệm/kinh nghiệm.</p>
+  <input id="audienceProfile" type="text" placeholder="Ví dụ: Người Mỹ lớn tuổi, trên 60 tuổi" />
+
   <label for="defaultTone">Giọng ưu tiên</label>
   <p class="hint">AI vẫn đưa 3 phương án, nhưng sẽ chăm chút nhất cho giọng này.</p>
   <select id="defaultTone">
