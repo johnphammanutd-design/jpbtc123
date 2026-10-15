@@ -15,8 +15,11 @@ fs.mkdirSync(S, { recursive: true });
 const CDP = process.env.CDP_ENDPOINT || 'http://127.0.0.1:9222';
 const ORIGIN = process.env.APP_ORIGIN || 'http://localhost:3000';
 
+// Windows: CLI toàn cục là rea.cmd và phải chạy qua shell mới phân giải được
+const REA_BIN = process.env.REA_BIN || (process.platform === 'win32' ? 'rea.cmd' : 'rea');
 function rea(args, outFile) {
-  const out = execFileSync('rea', [...args, '--format', 'json'], { maxBuffer: 256 * 1024 * 1024 }).toString();
+  const out = execFileSync(REA_BIN, [...args, '--format', 'json'],
+    { maxBuffer: 256 * 1024 * 1024, shell: process.platform === 'win32' }).toString();
   fs.writeFileSync(outFile, out);
   return JSON.parse(out);
 }
@@ -48,12 +51,18 @@ function findLongString(o) {
 
 const browser = await chromium.connectOverCDP(CDP);
 const ctx = browser.contexts()[0] ?? (await browser.newContext());
+// Đóng tab cũ của lần chạy trước để targetIdFor không bắt nhầm tab chết
+for (const p of ctx.pages()) await p.close().catch(() => {});
 const page = await ctx.newPage();
 await page.setViewportSize({ width: 1440, height: 900 });
 await page.goto(ORIGIN);
-await page.fill('#loginUser', 'admin');
-await page.fill('#loginPass', 'admin123');
-await page.click('#loginBtn');
+// Chạy lại được: profile trình duyệt có thể còn phiên cũ → form login không hiện
+const loginVisible = await page.locator('#loginUser').isVisible().catch(() => false);
+if (loginVisible) {
+  await page.fill('#loginUser', 'admin');
+  await page.fill('#loginPass', 'admin123');
+  await page.click('#loginBtn');
+}
 await page.waitForSelector('.board-tile');
 await page.click('.board-tile');
 await page.waitForSelector('.card');
@@ -69,7 +78,7 @@ const listeners = rea(['inspect-web-event-listeners', CDP, targetId, '.card', '-
 console.log('[rea] listeners on .card: evidence', listeners.evidence_id);
 
 // Pha 2: kéo thẻ đầu tiên của "Cần làm" sang "Đang làm", DỪNG GIỮA CHỪNG để REA chụp
-const card = page.locator('.card', { hasText: 'Viết kịch bản tập 12' }).first();
+const card = page.locator('.card', { hasText: '[MẪU] Tập 13 — Ý tưởng câu chuyện' }).first();
 const from = await card.boundingBox();
 const targetList = page.locator('.cards[data-list-id="2"]');
 const to = await targetList.boundingBox();
@@ -110,7 +119,7 @@ const moved = await page.evaluate(async () => {
   const token = localStorage.getItem('kanban-token');
   const r = await fetch('/api/boards/1', { headers: { Authorization: 'Bearer ' + token } });
   const d = await r.json();
-  return d.cards.find(c => c.title === 'Viết kịch bản tập 12');
+  return d.cards.find(c => c.title === '[MẪU] Tập 13 — Ý tưởng câu chuyện');
 });
 console.log('[verify] card after drop:', JSON.stringify({ list_id: moved.list_id, position: moved.position }));
 if (moved.list_id !== 2) throw new Error('DROP FAILED: card not in list 2');
