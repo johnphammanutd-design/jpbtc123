@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Trợ lý phản biện comment",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Gợi ý câu trả lời phản biện tự nhiên cho comment trái chiều dưới video YouTube. AI chỉ gợi ý — bạn tự chỉnh sửa và tự đăng.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
