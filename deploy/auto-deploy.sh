@@ -99,7 +99,7 @@ fi
 
 step "[7/7] Board mẫu + sao lưu hằng đêm"
 $SUDO docker compose exec -T kanban node scripts/seed-youtube-board.mjs || warn "Seed board mẫu lỗi — chạy tay sau."
-CRON_LINE="0 2 * * * cd $APP_DIR/app && docker compose cp kanban:/data/kanban.db \$HOME/backup-kanban-\$(date +\%F).db && ls -t \$HOME/backup-kanban-*.db | tail -n +15 | xargs -r rm"
+CRON_LINE="0 2 * * * cd $APP_DIR/app && docker compose exec -T kanban node scripts/backup-db.mjs /data/backup.db && docker compose cp kanban:/data/backup.db \$HOME/backup-kanban-\$(date +\%F).db && ls -t \$HOME/backup-kanban-*.db | tail -n +15 | xargs -r rm"
 ( crontab -l 2>/dev/null | grep -v 'backup-kanban' || true ; echo "$CRON_LINE" ) | crontab -
 echo "Đã đặt cron sao lưu 2h sáng, giữ 14 bản."
 
