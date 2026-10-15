@@ -3,11 +3,12 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      # Đổi 2 giá trị này trước lần chạy đầu tiên!
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: doi-mat-khau-nay
+      # Đặt trong file .env cùng thư mục (script auto-deploy.sh tạo giúp),
+      # hoặc sửa trực tiếp 2 giá trị mặc định dưới đây trước lần chạy đầu.
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-doi-mat-khau-nay}
     volumes:
       - kanban-data:/data
 
