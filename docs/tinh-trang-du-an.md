@@ -47,19 +47,23 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
 | `huong-dan-su-dung-cho-doi.md` | Hướng dẫn 3 phút cho nhân viên |
 | `tinh-trang-du-an.md` | File này |
 
-## Trạng thái triển khai — ĐANG DỞ Ở ĐÂY
+## Trạng thái triển khai — ĐÃ LÊN MẠNG 16/10/2026
 
-- Hạ tầng: user có VPS **149.28.132.148** đang chạy sẵn site `kairetic.com`;
-  đã trỏ DNS `task.kairetic.com → 149.28.132.148`.
-- Phiên Claude cloud **không SSH được** vào VPS (chính sách mạng chặn) →
-  đã chuẩn bị script tự chạy:
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/johnphammanutd-design/jpbtc123/claude/trello-like-task-system-xuc1bz/deploy/auto-deploy.sh -o auto-deploy.sh
-  bash auto-deploy.sh
-  ```
-- **Việc tiếp theo duy nhất đang chờ**: chạy script trên trong SSH của VPS
-  (hoặc để phiên Claude local có SSH làm theo `docs/trien-khai-task-kairetic.md`).
-  Script idempotent, tự nhận diện Nginx có sẵn hay cài Caddy.
+- **https://task.kairetic.com đang chạy** trên VPS **149.28.132.148** (Nginx +
+  certbot, chứng chỉ hết hạn 13/01/2027, tự gia hạn). App trong Docker,
+  container `app-kanban-1`, cổng 3000 chỉ loopback. Code VPS tại `/root/jpbtc123`.
+- Phiên Claude local (PC Render 02, khóa `~/.ssh/vultr`) đã deploy bằng
+  `deploy/deploy-from-pc.sh` (gọi `auto-deploy.sh` trên VPS, idempotent).
+- Mật khẩu admin sinh ngẫu nhiên lần đầu, lưu tại **`/root/task-admin-login.txt`**
+  trên VPS (không nằm trong chat/repo). Xem bằng:
+  `ssh -i ~/.ssh/vultr root@149.28.132.148 "cat /root/task-admin-login.txt"`
+- Board mẫu "Sản xuất video" đã seed (5 cột, 6 nhãn, 1 rule, 4 thẻ [MẪU]).
+- Cron backup 2h sáng đã đặt + đã chạy thử OK. **Lưu ý WAL**: backup phải qua
+  `scripts/backup-db.mjs` (better-sqlite3 `.backup()`), copy file `.db` trần
+  sẽ thiếu dữ liệu trong `-wal` — cron hiện tại đã đúng. Backup chỉ nằm trên
+  chính VPS, chưa có bản ngoài máy (rủi ro đã biết toàn VPS).
+- Hai sửa lỗi deploy đã push: Dockerfile copy `scripts/` vào image;
+  cron trong `auto-deploy.sh` không chết vì `pipefail` khi crontab rỗng.
 
 ## Việc còn lại sau khi deploy (theo thứ tự)
 
