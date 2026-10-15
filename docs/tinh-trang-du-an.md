@@ -47,11 +47,15 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
 | `huong-dan-su-dung-cho-doi.md` | Hướng dẫn 3 phút cho nhân viên |
 | `tinh-trang-du-an.md` | File này |
 
-## Trạng thái triển khai — ĐÃ LÊN MẠNG 16/10/2026
+## Trạng thái triển khai — ĐÃ LÊN MẠNG 16/10/2026, ĐÃ DỜI SANG VPS MỚI cùng ngày
 
-- **https://task.kairetic.com đang chạy** trên VPS **149.28.132.148** (Nginx +
-  certbot, chứng chỉ hết hạn 13/01/2027, tự gia hạn). App trong Docker,
-  container `app-kanban-1`, cổng 3000 chỉ loopback. Code VPS tại `/root/jpbtc123`.
+- **https://task.kairetic.com đang chạy trên VPS MỚI 139.180.145.29** (DNS đổi 16/10
+  theo kế hoạch tách VPS; app + toàn bộ dữ liệu dời bằng `deploy/migrate-task-to-new-vps.sh`
+  chạy từ VPS cũ qua khóa `/root/.ssh/migrate_tmp`). Nginx + certbot (hết hạn 13/01/2027,
+  tự gia hạn), Docker container `app-kanban-1`, cổng 3000 chỉ loopback, code `/root/jpbtc123`,
+  cron backup 2h sáng. **Dự phòng trên VPS cũ 149.28.132.148**: volume `app_kanban-data`
+  + `/data/backup-final-migrate.db`, container đã stop — đúng trạng thái lúc dời.
+  PC Render 02 vào VPS mới bằng cách SSH qua VPS cũ (khóa migrate_tmp).
 - Phiên Claude local (PC Render 02, khóa `~/.ssh/vultr`) đã deploy bằng
   `deploy/deploy-from-pc.sh` (gọi `auto-deploy.sh` trên VPS, idempotent).
 - Mật khẩu admin sinh ngẫu nhiên lần đầu, lưu tại **`/root/task-admin-login.txt`**
