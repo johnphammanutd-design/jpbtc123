@@ -58,10 +58,18 @@
   .list-header .del, .checklist-item .del, dialog .del {
     border: 0; background: transparent; color: var(--muted); cursor: pointer; }
   .cards { min-height: 8px; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
-  .cards.drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: var(--radius); }
   .card { background: var(--surface); border-radius: var(--radius); padding: 8px 10px;
-    box-shadow: var(--shadow); cursor: grab; }
-  .card.dragging { opacity: .4; }
+    box-shadow: var(--shadow); cursor: grab; touch-action: none; }
+  /* Thẻ "ma" bám theo con trỏ khi kéo — nghiêng 4° như Trello */
+  .card.drag-ghost { position: fixed; z-index: 1000; pointer-events: none; margin: 0;
+    transform: rotate(4deg); box-shadow: 0 12px 24px rgba(9,30,66,.45); cursor: grabbing; }
+  .card.drag-ghost.dropping { transition: top .18s cubic-bezier(.2,0,0,1), left .18s cubic-bezier(.2,0,0,1), transform .18s cubic-bezier(.2,0,0,1); transform: rotate(0deg); }
+  .card-placeholder { background: rgba(9,30,66,.14); border-radius: var(--radius); flex: none; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .card-placeholder { background: rgba(255,255,255,.12); }
+  }
+  body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; }
+  .card.shifting { transition: transform .15s ease; }
   .card .labels { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
   .card .labels span { width: 36px; height: 8px; border-radius: 4px; display: inline-block; }
   .card .title { word-break: break-word; }
@@ -80,6 +88,10 @@
     width: min(540px, calc(100vw - 32px)); padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,.35);
     max-height: 85vh; overflow-y: auto; }
   dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog[open] { animation: dialog-in .18s cubic-bezier(.2,0,0,1); }
+  dialog[open]::backdrop { animation: backdrop-in .18s ease; }
+  @keyframes dialog-in { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
   label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; font-weight: 600; }
   input[type=text], input[type=password], input[type=date], textarea, select.field {
     width: 100%; padding: 8px; border-radius: 6px; border: 1px solid rgba(128,128,128,.4);
@@ -326,6 +338,7 @@ async function loadBoard(id, isRefresh = false) {
   boardData = await api('/boards/' + id);
   if (currentBoardId !== id) return;
   $('boardTitle').textContent = '› ' + boardData.board.title;
+  if (drag.active) { drag.pendingRefresh = true; return; } // không phá thao tác kéo đang diễn ra
   renderBoard();
   if (isRefresh && editingCard) {
     // Thẻ đang mở có thể vừa bị người khác sửa — chỉ cập nhật phần hiển thị nền
@@ -385,16 +398,8 @@ function renderList(list, lastListId) {
 
   const cardsEl = document.createElement('div');
   cardsEl.className = 'cards';
+  cardsEl.dataset.listId = list.id;
   for (const c of cards) cardsEl.appendChild(renderCard(c, list.id === lastListId));
-
-  cardsEl.addEventListener('dragover', e => { e.preventDefault(); cardsEl.classList.add('drag-over'); });
-  cardsEl.addEventListener('dragleave', () => cardsEl.classList.remove('drag-over'));
-  cardsEl.addEventListener('drop', e => {
-    e.preventDefault();
-    cardsEl.classList.remove('drag-over');
-    const cardId = Number(e.dataTransfer.getData('text/plain'));
-    dropCard(cardId, list, dropIndexAt(cardsEl, e.clientY));
-  });
 
   const addBtn = document.createElement('button');
   addBtn.className = 'add';
@@ -411,7 +416,6 @@ function renderList(list, lastListId) {
 function renderCard(c, inDoneList) {
   const el = document.createElement('article');
   el.className = 'card';
-  el.draggable = true;
   el.dataset.cardId = c.id;
 
   const labels = JSON.parse(c.labels || '[]');
@@ -469,27 +473,139 @@ function renderCard(c, inDoneList) {
     el.appendChild(bar);
   }
 
-  el.addEventListener('dragstart', e => {
-    e.dataTransfer.setData('text/plain', String(c.id));
-    el.classList.add('dragging');
+  el.addEventListener('pointerdown', e => startCardDrag(e, c, el));
+  el.addEventListener('click', () => {
+    if (drag.suppressClick) { drag.suppressClick = false; return; }
+    openCardDialog(c);
   });
-  el.addEventListener('dragend', () => el.classList.remove('dragging'));
-  el.addEventListener('click', () => openCardDialog(c));
   return el;
 }
 
-function dropIndexAt(cardsEl, y) {
-  const cards = [...cardsEl.querySelectorAll('.card:not(.dragging)')];
-  for (let i = 0; i < cards.length; i++) {
-    const r = cards[i].getBoundingClientRect();
-    if (y < r.top + r.height / 2) return i;
+/* ---------- Kéo-thả kiểu Trello: thẻ ma nghiêng 4°, placeholder, FLIP ---------- */
+const drag = { active: false, suppressClick: false, pendingRefresh: false };
+
+function startCardDrag(e, c, cardEl) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const startX = e.clientX, startY = e.clientY;
+  const rect = cardEl.getBoundingClientRect();
+  const offsetX = startX - rect.left, offsetY = startY - rect.top;
+  let started = false, ghost = null, placeholder = null;
+
+  const begin = () => {
+    started = true;
+    drag.active = true;
+    drag.suppressClick = true;
+    document.body.classList.add('is-dragging');
+    ghost = cardEl.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width = rect.width + 'px';
+    ghost.style.left = rect.left + 'px';
+    ghost.style.top = rect.top + 'px';
+    document.body.appendChild(ghost);
+    placeholder = document.createElement('div');
+    placeholder.className = 'card-placeholder';
+    placeholder.style.height = rect.height + 'px';
+    cardEl.replaceWith(placeholder);
+  };
+
+  const move = ev => {
+    if (!started) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+      begin();
+    }
+    ghost.style.left = (ev.clientX - offsetX) + 'px';
+    ghost.style.top = (ev.clientY - offsetY) + 'px';
+    autoScrollBoard(ev);
+    positionPlaceholder(ev, placeholder);
+  };
+
+  const up = async () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    if (!started) return; // chỉ là click
+    // Thẻ ma "bay" về vị trí placeholder rồi mới hạ xuống
+    const target = placeholder.getBoundingClientRect();
+    ghost.classList.add('dropping');
+    ghost.style.left = target.left + 'px';
+    ghost.style.top = target.top + 'px';
+    const cardsEl = placeholder.closest('.cards');
+    const listId = Number(cardsEl.dataset.listId);
+    const slots = [...cardsEl.children].filter(n => n.classList.contains('card') || n === placeholder);
+    const index = slots.indexOf(placeholder);
+    await new Promise(r => setTimeout(r, 190));
+    ghost.remove();
+    document.body.classList.remove('is-dragging');
+    drag.active = false;
+    commitDrop(c.id, listId, index);
+  };
+
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+
+// Đặt placeholder vào cột + vị trí dưới con trỏ; các thẻ khác trượt chỗ bằng FLIP
+function positionPlaceholder(ev, placeholder) {
+  const containers = [...document.querySelectorAll('.cards')];
+  let target = null;
+  for (const el of containers) {
+    const r = el.closest('.list').getBoundingClientRect();
+    if (ev.clientX >= r.left && ev.clientX <= r.right) { target = el; break; }
   }
-  return cards.length;
+  if (!target) return;
+  const cards = [...target.children].filter(n => n.classList.contains('card'));
+  let insertBefore = null;
+  for (const el of cards) {
+    const r = el.getBoundingClientRect();
+    if (ev.clientY < r.top + r.height / 2) { insertBefore = el; break; }
+  }
+  const already = placeholder.parentElement === target &&
+    (insertBefore ? placeholder.nextElementSibling === insertBefore
+                  : placeholder === [...target.children].at(-1));
+  if (already) return;
+  flipShift(() => {
+    if (insertBefore) target.insertBefore(placeholder, insertBefore);
+    else target.appendChild(placeholder);
+  });
+}
+
+// FLIP: ghi vị trí trước, đổi DOM, rồi cho thẻ trượt về vị trí mới
+function flipShift(mutate) {
+  const cards = [...document.querySelectorAll('.card')].filter(el => !el.classList.contains('drag-ghost'));
+  const before = new Map(cards.map(el => [el, el.getBoundingClientRect()]));
+  mutate();
+  for (const el of cards) {
+    const b = before.get(el);
+    const a = el.getBoundingClientRect();
+    const dx = b.left - a.left, dy = b.top - a.top;
+    if (dx || dy) {
+      el.classList.remove('shifting');
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => {
+        el.classList.add('shifting');
+        el.style.transform = '';
+      });
+    }
+  }
+}
+
+function autoScrollBoard(ev) {
+  const bv = $('boardView');
+  const r = bv.getBoundingClientRect();
+  if (ev.clientX > r.right - 60) bv.scrollLeft += 14;
+  else if (ev.clientX < r.left + 60) bv.scrollLeft -= 14;
+  const cardsEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.cards');
+  if (cardsEl) {
+    const cr = cardsEl.getBoundingClientRect();
+    if (ev.clientY > cr.bottom - 40) cardsEl.scrollTop += 10;
+    else if (ev.clientY < cr.top + 40) cardsEl.scrollTop -= 10;
+  }
 }
 
 // Vị trí mới = trung điểm giữa hai thẻ lân cận (fractional index, như Trello)
-function dropCard(cardId, list, index) {
-  const siblings = cardsOf(list.id).filter(c => c.id !== cardId);
+function commitDrop(cardId, listId, index) {
+  const siblings = cardsOf(listId).filter(x => x.id !== cardId);
   const before = siblings[index - 1];
   const after = siblings[index];
   let position;
@@ -497,7 +613,18 @@ function dropCard(cardId, list, index) {
   else if (!before) position = after.position - 512;
   else if (!after) position = before.position + 1024;
   else position = (before.position + after.position) / 2;
-  api('/cards/' + cardId, { method: 'PATCH', body: { list_id: list.id, position } });
+  const card = boardData.cards.find(x => x.id === cardId);
+  if (card) {
+    card.list_id = listId;
+    card.position = position;
+    boardData.cards.sort((a, b) => a.position - b.position || a.id - b.id);
+  }
+  renderBoard();
+  api('/cards/' + cardId, { method: 'PATCH', body: { list_id: listId, position } });
+  if (drag.pendingRefresh) {
+    drag.pendingRefresh = false;
+    loadBoard(currentBoardId, true);
+  }
 }
 
 /* ---------- Chi tiết thẻ ---------- */
