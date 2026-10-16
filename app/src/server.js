@@ -234,8 +234,84 @@ function scanDueNotifications() {
     }
   }
 }
-setInterval(scanDueNotifications, 60 * 60 * 1000);
-setTimeout(scanDueNotifications, 10 * 1000);
+/* ---------- Automation theo lịch & theo ngày hạn (Butler mở rộng) ---------- */
+
+function sortListNow(listId, by) {
+  const orders = {
+    title: 'ORDER BY title COLLATE NOCASE',
+    due: "ORDER BY CASE WHEN due_date = '' THEN 1 ELSE 0 END, due_date",
+    created: 'ORDER BY created_at DESC, id DESC',
+  };
+  if (!orders[by]) return;
+  const cards = db.prepare(`SELECT id FROM cards WHERE list_id = ? AND archived = 0 ${orders[by]}`).all(listId);
+  const upd = db.prepare('UPDATE cards SET position = ? WHERE id = ?');
+  cards.forEach((c, i) => upd.run((i + 1) * 1024, c.id));
+}
+
+function runScheduledAutomations() {
+  const today = new Date().toISOString().slice(0, 10);
+  const weekday = ((new Date().getDay() + 6) % 7) + 1; // 1=Thứ 2 … 7=CN
+  const rows = db.prepare("SELECT * FROM auto_schedules WHERE enabled = 1 AND last_run != ?").all(today);
+  for (const s of rows) {
+    if (s.cadence === 'weekly' && s.weekday !== weekday) continue;
+    let a = {};
+    try { a = JSON.parse(s.actions); } catch { continue; }
+    const applied = [];
+    if (a.sort?.list_id) { sortListNow(Number(a.sort.list_id), String(a.sort.by || 'due')); applied.push('sort'); }
+    if (a.archive_done_list_id) {
+      db.prepare('UPDATE cards SET archived = 1 WHERE list_id = ? AND due_complete = 1 AND archived = 0')
+        .run(Number(a.archive_done_list_id));
+      applied.push('archive_done');
+    }
+    db.prepare('UPDATE auto_schedules SET last_run = ? WHERE id = ?').run(today, s.id);
+    if (applied.length) {
+      logActivity(s.board_id, null, null, 'rule_applied', { applied: ['⏰ lịch: ' + applied.join(', ')] });
+      notifyBoard(s.board_id);
+    }
+  }
+}
+
+function runDueRules() {
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const rules = db.prepare('SELECT * FROM due_rules WHERE enabled = 1').all();
+  for (const rule of rules) {
+    let a = {};
+    try { a = JSON.parse(rule.actions); } catch { continue; }
+    const cond = rule.trigger === 'overdue' ? `c.due_date < '${today}'` : `c.due_date = '${tomorrow}'`;
+    const cards = db.prepare(`
+      SELECT c.id, c.title FROM cards c JOIN lists l ON l.id = c.list_id
+      WHERE l.board_id = ? AND c.archived = 0 AND c.due_complete = 0 AND c.due_date != '' AND ${cond}
+        AND NOT EXISTS (SELECT 1 FROM due_rule_applied da WHERE da.rule_id = ? AND da.card_id = c.id)
+    `).all(rule.board_id, rule.id);
+    for (const c of cards) {
+      const applied = [];
+      if (a.label_id) {
+        db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)').run(c.id, Number(a.label_id));
+        applied.push('label');
+      }
+      if (a.move_list_id) {
+        db.prepare('UPDATE cards SET list_id = ?, position = ? WHERE id = ?')
+          .run(Number(a.move_list_id), nextPosition('cards', 'WHERE list_id = ?', [Number(a.move_list_id)]), c.id);
+        applied.push('move');
+      }
+      db.prepare('INSERT OR IGNORE INTO due_rule_applied (rule_id, card_id) VALUES (?, ?)').run(rule.id, c.id);
+      if (applied.length) {
+        logActivity(rule.board_id, c.id, null,
+          'rule_applied', { applied: [(rule.trigger === 'overdue' ? '🔴 quá hạn: ' : '⏰ sắp hạn: ') + applied.join(', ')] });
+      }
+    }
+    if (cards.length) notifyBoard(rule.board_id);
+  }
+}
+
+function hourlyTick() {
+  try { scanDueNotifications(); } catch (e) { console.error('scanDue:', e.message); }
+  try { runScheduledAutomations(); } catch (e) { console.error('schedules:', e.message); }
+  try { runDueRules(); } catch (e) { console.error('dueRules:', e.message); }
+}
+setInterval(hourlyTick, 60 * 60 * 1000);
+setTimeout(hourlyTick, 10 * 1000);
 
 app.get('/api/notifications', auth, (req, res) => {
   const rows = db.prepare(`
@@ -373,7 +449,10 @@ app.get('/api/boards/:id', auth, (req, res) => {
     JOIN cards c ON c.id = w.card_id JOIN lists l ON l.id = c.list_id
     WHERE l.board_id = ? AND w.user_id = ?
   `).all(board.id, req.user.id).map(r => r.card_id);
-  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches });
+  const schedules = db.prepare('SELECT * FROM auto_schedules WHERE board_id = ?').all(board.id);
+  const dueRules = db.prepare('SELECT * FROM due_rules WHERE board_id = ?').all(board.id);
+  const cardButtons = db.prepare('SELECT * FROM card_buttons WHERE board_id = ? ORDER BY position, id').all(board.id);
+  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches, schedules, dueRules, cardButtons });
 });
 
 app.get('/api/boards/:id/archived', auth, (req, res) => {
@@ -740,6 +819,129 @@ app.delete('/api/rules/:id', auth, (req, res) => {
   const rule = db.prepare('SELECT board_id FROM automation_rules WHERE id = ?').get(req.params.id);
   db.prepare('DELETE FROM automation_rules WHERE id = ?').run(req.params.id);
   if (rule) notifyBoard(rule.board_id);
+  res.json({ ok: true });
+});
+
+/* ---------- Automation theo lịch / theo hạn / nút thẻ (CRUD) ---------- */
+
+app.post('/api/boards/:id/schedules', auth, (req, res) => {
+  const { cadence, weekday, actions } = req.body || {};
+  if (!['daily', 'weekly'].includes(cadence) || !actions || typeof actions !== 'object') {
+    return res.status(400).json({ error: 'Cần chu kỳ (daily/weekly) và hành động' });
+  }
+  const info = db.prepare('INSERT INTO auto_schedules (board_id, cadence, weekday, actions) VALUES (?, ?, ?, ?)')
+    .run(Number(req.params.id), cadence, Math.min(7, Math.max(1, Number(weekday) || 1)), JSON.stringify(actions));
+  notifyBoard(Number(req.params.id));
+  res.json({ id: info.lastInsertRowid });
+});
+
+app.delete('/api/schedules/:id', auth, (req, res) => {
+  const row = db.prepare('SELECT board_id FROM auto_schedules WHERE id = ?').get(req.params.id);
+  db.prepare('DELETE FROM auto_schedules WHERE id = ?').run(req.params.id);
+  if (row) notifyBoard(row.board_id);
+  res.json({ ok: true });
+});
+
+app.post('/api/boards/:id/due-rules', auth, (req, res) => {
+  const { trigger, actions } = req.body || {};
+  if (!['overdue', 'due_tomorrow'].includes(trigger) || !actions || typeof actions !== 'object') {
+    return res.status(400).json({ error: 'Cần điều kiện hạn và hành động' });
+  }
+  const info = db.prepare('INSERT INTO due_rules (board_id, trigger, actions) VALUES (?, ?, ?)')
+    .run(Number(req.params.id), trigger, JSON.stringify(actions));
+  notifyBoard(Number(req.params.id));
+  res.json({ id: info.lastInsertRowid });
+});
+
+app.delete('/api/due-rules/:id', auth, (req, res) => {
+  const row = db.prepare('SELECT board_id FROM due_rules WHERE id = ?').get(req.params.id);
+  db.prepare('DELETE FROM due_rules WHERE id = ?').run(req.params.id);
+  if (row) notifyBoard(row.board_id);
+  res.json({ ok: true });
+});
+
+app.post('/api/boards/:id/buttons', auth, (req, res) => {
+  const { name, actions } = req.body || {};
+  if (!String(name || '').trim() || !actions || typeof actions !== 'object') {
+    return res.status(400).json({ error: 'Cần tên nút và hành động' });
+  }
+  const info = db.prepare('INSERT INTO card_buttons (board_id, name, actions, position) VALUES (?, ?, ?, ?)')
+    .run(Number(req.params.id), String(name).trim().slice(0, 30), JSON.stringify(actions),
+      nextPosition('card_buttons', 'WHERE board_id = ?', [Number(req.params.id)]));
+  notifyBoard(Number(req.params.id));
+  res.json({ id: info.lastInsertRowid });
+});
+
+app.delete('/api/buttons/:id', auth, (req, res) => {
+  const row = db.prepare('SELECT board_id FROM card_buttons WHERE id = ?').get(req.params.id);
+  db.prepare('DELETE FROM card_buttons WHERE id = ?').run(req.params.id);
+  if (row) notifyBoard(row.board_id);
+  res.json({ ok: true });
+});
+
+// Bấm nút thẻ tùy chỉnh: áp chuỗi hành động lên thẻ
+app.post('/api/cards/:id/apply-button/:buttonId', auth, (req, res) => {
+  const cardId = Number(req.params.id);
+  const btn = db.prepare('SELECT * FROM card_buttons WHERE id = ?').get(req.params.buttonId);
+  const card = db.prepare('SELECT * FROM cards WHERE id = ?').get(cardId);
+  if (!btn || !card) return res.status(404).json({ error: 'Không tồn tại' });
+  let a = {};
+  try { a = JSON.parse(btn.actions); } catch {}
+  const applied = [];
+  if (a.label_id) { db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)').run(cardId, Number(a.label_id)); applied.push('label'); }
+  if (a.complete) { db.prepare('UPDATE cards SET due_complete = 1 WHERE id = ?').run(cardId); applied.push('complete'); }
+  if (a.due_shift_days !== undefined && a.due_shift_days !== null && a.due_shift_days !== '') {
+    const base = card.due_date ? new Date(card.due_date) : new Date();
+    base.setDate(base.getDate() + Number(a.due_shift_days));
+    const d = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+    db.prepare('UPDATE cards SET due_date = ? WHERE id = ?').run(d, cardId);
+    applied.push('due');
+  }
+  if (a.move_list_id) {
+    db.prepare('UPDATE cards SET list_id = ?, position = ? WHERE id = ?')
+      .run(Number(a.move_list_id), nextPosition('cards', 'WHERE list_id = ?', [Number(a.move_list_id)]), cardId);
+    applyRules(cardId, Number(a.move_list_id), req.user.id);
+    applied.push('move');
+  }
+  const boardId = boardIdOfCard(cardId);
+  logActivity(boardId, cardId, req.user.id, 'rule_applied', { applied: [`🔘 ${btn.name}: ${applied.join(', ')}`] });
+  notifyBoard(boardId);
+  res.json({ ok: true, applied });
+});
+
+/* ---------- Hợp nhất thẻ (merge — như Trello bản mới) ---------- */
+
+app.post('/api/cards/:id/merge', auth, (req, res) => {
+  const srcId = Number(req.params.id);
+  const dstId = Number(req.body?.target_id);
+  const src = db.prepare('SELECT * FROM cards WHERE id = ?').get(srcId);
+  const dst = db.prepare('SELECT * FROM cards WHERE id = ?').get(dstId);
+  if (!src || !dst || srcId === dstId) return res.status(400).json({ error: 'Thẻ nguồn/đích không hợp lệ' });
+  const merge = db.transaction(() => {
+    if (src.description) {
+      const d = dst.description ? dst.description + '\n\n— Hợp nhất từ "' + src.title + '":\n' + src.description
+                                : src.description;
+      db.prepare('UPDATE cards SET description = ? WHERE id = ?').run(d, dstId);
+    }
+    if (src.due_date && !dst.due_date) {
+      db.prepare('UPDATE cards SET due_date = ? WHERE id = ?').run(src.due_date, dstId);
+    }
+    db.prepare('UPDATE checklist_items SET card_id = ? WHERE card_id = ?').run(dstId, srcId);
+    db.prepare('UPDATE comments SET card_id = ? WHERE card_id = ?').run(dstId, srcId);
+    db.prepare('UPDATE attachments SET card_id = ? WHERE card_id = ?').run(dstId, srcId);
+    db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) SELECT ?, label_id FROM card_labels WHERE card_id = ?').run(dstId, srcId);
+    db.prepare('INSERT OR IGNORE INTO card_members (card_id, user_id) SELECT ?, user_id FROM card_members WHERE card_id = ?').run(dstId, srcId);
+    db.prepare('INSERT OR IGNORE INTO card_watchers (card_id, user_id) SELECT ?, user_id FROM card_watchers WHERE card_id = ?').run(dstId, srcId);
+    db.prepare('UPDATE cards SET archived = 1 WHERE id = ?').run(srcId);
+  });
+  merge();
+  const boardId = boardIdOfCard(dstId);
+  logActivity(boardId, dstId, req.user.id, 'card_merged', { from: src.title, into: dst.title });
+  for (const uid of cardRecipientIds(dstId)) {
+    pushNotification(uid, req.user.id, 'moved', boardId, dstId, { title: dst.title, from: 'hợp nhất "' + src.title + '"', to: dst.title });
+  }
+  notifyBoard(boardId);
+  notifyBoard(boardIdOfCard(srcId));
   res.json({ ok: true });
 });
 

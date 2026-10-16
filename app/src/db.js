@@ -226,6 +226,39 @@ CREATE TABLE IF NOT EXISTS card_watchers (
 );
 `);
 
+/* ---------- Migration v5: đợt 4 — Butler đầy đủ ---------- */
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS auto_schedules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  cadence TEXT NOT NULL,            -- 'daily' | 'weekly'
+  weekday INTEGER NOT NULL DEFAULT 1, -- 1=Thứ 2 … 7=CN (chỉ dùng khi weekly)
+  actions TEXT NOT NULL DEFAULT '{}', -- {sort:{list_id,by}} | {archive_done_list_id:X}
+  last_run TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS due_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  trigger TEXT NOT NULL,            -- 'overdue' | 'due_tomorrow'
+  actions TEXT NOT NULL DEFAULT '{}', -- {label_id, move_list_id}
+  enabled INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS due_rule_applied (
+  rule_id INTEGER NOT NULL REFERENCES due_rules(id) ON DELETE CASCADE,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  PRIMARY KEY (rule_id, card_id)
+);
+CREATE TABLE IF NOT EXISTS card_buttons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  actions TEXT NOT NULL DEFAULT '{}', -- {move_list_id, due_shift_days, label_id, complete}
+  position REAL NOT NULL DEFAULT 0
+);
+`);
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

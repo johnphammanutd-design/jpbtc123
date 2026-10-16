@@ -325,6 +325,22 @@
   .card .title .t { flex: 1; }
   .card.is-complete .title .t { color: var(--muted); }
 
+  /* Đợt 4: Table view + kéo cột */
+  #tableView { background: var(--surface); border-radius: 12px; padding: 12px 16px; overflow-x: auto; }
+  #tableView table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #tableView th { text-align: left; color: var(--muted); font-size: 12px; cursor: pointer;
+    padding: 8px; border-bottom: 2px solid rgba(128,128,128,.3); white-space: nowrap; user-select: none; }
+  #tableView th.sorted { color: var(--accent); }
+  #tableView td { padding: 7px 8px; border-bottom: 1px solid rgba(128,128,128,.15); }
+  #tableView tbody tr { cursor: pointer; }
+  #tableView tbody tr:hover { background: var(--list-bg); }
+  #tableView .pill { display: inline-block; min-width: 28px; height: 14px; border-radius: 7px;
+    padding: 0 6px; font-size: 10px; font-weight: 600; color: #fff; margin-right: 3px;
+    text-shadow: 0 1px 1px rgba(0,0,0,.3); }
+  .list-header .grip { cursor: grab; color: var(--muted); user-select: none; touch-action: none;
+    padding: 0 2px; font-size: 13px; }
+  .list.list-dragging { opacity: .55; outline: 2px dashed var(--accent); }
+
   @media (max-width: 600px) { .list, .add-list { width: 260px; flex-basis: 260px; } #searchBox { width: 110px; }
     .plan-layout { grid-template-columns: 1fr; } .plan-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>
@@ -336,6 +352,7 @@
   <button id="starBtn" class="hidden" title="Đánh dấu sao">☆</button>
   <button id="viewBoardBtn" class="hidden on">Bảng</button>
   <button id="viewCalBtn" class="hidden">Lịch</button>
+  <button id="viewTableBtn" class="hidden">Bảng kê</button>
   <button id="inboxBtn" class="hidden" title="Inbox — thu việc nhanh">📥</button>
   <button id="plannerBtn" class="hidden" title="Planner tuần của tôi">🗓</button>
   <span class="spacer"></span>
@@ -374,6 +391,7 @@
 
   <div id="boardView" class="hidden"></div>
   <div id="calendarView" class="hidden"></div>
+  <div id="tableView" class="hidden"></div>
   <div id="plannerView" class="hidden"></div>
 </main>
 
@@ -410,6 +428,7 @@
     <div class="cover-picker" id="fCover"></div>
     <label>Tiêu đề</label>
     <input type="text" id="fTitle" required>
+    <div class="chip-row" id="fCardButtons" style="margin-top:8px"></div>
     <label>Mô tả</label>
     <textarea id="fDesc" placeholder="Bối cảnh, yêu cầu, link tài liệu…"></textarea>
     <label>Thành viên</label>
@@ -454,6 +473,7 @@
       <button class="btn-primary" value="save">Lưu</button>
       <button type="button" id="closeCard">Đóng</button>
       <button type="button" class="btn" id="copyCard">Sao chép</button>
+      <button type="button" class="btn" id="mergeCard" title="Gộp thẻ này vào thẻ khác">⇄ Hợp nhất</button>
       <button type="button" class="btn" id="linkCard" title="Chép link thẻ">🔗 Link</button>
       <button type="button" class="btn" id="watchCard" title="Nhận thông báo mọi thay đổi của thẻ">👁 Theo dõi</button>
       <button type="button" class="btn hidden" id="voteCard">👍 Vote</button>
@@ -602,7 +622,7 @@ function watchBoard(boardId) {
 function showLogin() {
   for (const id of ['boardsView', 'boardView', 'calendarView', 'plannerView', 'inboxPanel', 'notifPop']) $(id).classList.add('hidden');
   $('loginView').classList.remove('hidden');
-  for (const id of ['adminBtn', 'pwBtn', 'logoutBtn', 'searchWrap', 'filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'inboxBtn', 'plannerBtn', 'notifWrap'])
+  for (const id of ['adminBtn', 'pwBtn', 'logoutBtn', 'searchWrap', 'filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'viewTableBtn', 'inboxBtn', 'plannerBtn', 'notifWrap'])
     $(id).classList.add('hidden');
   $('whoami').textContent = '';
   $('boardTitle').textContent = '';
@@ -631,7 +651,7 @@ async function showBoards() {
   setHash('');
   watchBoard(null);
   for (const id of ['boardView', 'calendarView', 'plannerView']) $(id).classList.add('hidden');
-  for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn']) $(id).classList.add('hidden');
+  for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'viewTableBtn']) $(id).classList.add('hidden');
   $('filterPop').classList.add('hidden');
   $('boardMenu').classList.add('hidden');
   $('boardsView').classList.remove('hidden');
@@ -710,7 +730,7 @@ async function openBoard(id) {
   currentBoardId = id;
   setHash('#b/' + id);
   for (const el of ['boardsView', 'plannerView']) $(el).classList.add('hidden');
-  for (const el of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn']) $(el).classList.remove('hidden');
+  for (const el of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'viewTableBtn']) $(el).classList.remove('hidden');
   watchBoard(id);
   setViewMode('board');
   await loadBoard(id);
@@ -720,8 +740,10 @@ function setViewMode(mode) {
   viewMode = mode;
   $('viewBoardBtn').classList.toggle('on', mode === 'board');
   $('viewCalBtn').classList.toggle('on', mode === 'calendar');
+  $('viewTableBtn').classList.toggle('on', mode === 'table');
   $('boardView').classList.toggle('hidden', mode !== 'board');
   $('calendarView').classList.toggle('hidden', mode !== 'calendar');
+  $('tableView').classList.toggle('hidden', mode !== 'table');
   if (boardData) render();
 }
 
@@ -748,6 +770,7 @@ async function loadBoard(id, isRefresh = false) {
 
 function render() {
   if (viewMode === 'board') renderBoard();
+  else if (viewMode === 'table') renderTable();
   else renderCalendar();
   renderFilterPop();
 }
@@ -860,7 +883,12 @@ function renderList(list) {
   menuBtn.textContent = '⋯';
   menuBtn.title = 'Thao tác với cột';
   menuBtn.onclick = e => { e.stopPropagation(); openListMenu(list, menuBtn); };
-  header.append(nameInput, count, menuBtn);
+  const grip = document.createElement('span');
+  grip.className = 'grip';
+  grip.textContent = '⠿';
+  grip.title = 'Kéo để sắp xếp cột';
+  grip.addEventListener('pointerdown', e => startListDrag(e, list, el));
+  header.append(grip, nameInput, count, menuBtn);
 
   const cardsEl = document.createElement('div');
   cardsEl.className = 'cards';
@@ -1092,6 +1120,54 @@ function renderCard(c) {
     openCardDialog(c);
   });
   return el;
+}
+
+/* ---------- Kéo-thả sắp xếp CỘT (bằng tay cầm ⠿) ---------- */
+function startListDrag(e, list, listEl) {
+  e.preventDefault();
+  e.stopPropagation();
+  listEl.classList.add('list-dragging');
+  const root = $('boardView');
+
+  const move = ev => {
+    const others = [...root.querySelectorAll('.list')].filter(x => x !== listEl);
+    let before = null;
+    for (const o of others) {
+      const r = o.getBoundingClientRect();
+      if (ev.clientX < r.left + r.width / 2) { before = o; break; }
+    }
+    const already = before ? listEl.nextElementSibling === before
+                           : listEl === [...root.querySelectorAll('.list')].at(-1);
+    if (already) return;
+    flipShift(() => {
+      if (before) root.insertBefore(listEl, before);
+      else root.insertBefore(listEl, root.querySelector('.add-list'));
+    });
+  };
+
+  const up = async () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    listEl.classList.remove('list-dragging');
+    const order = [...root.querySelectorAll('.list')].map(x => Number(x.dataset.listEl));
+    const idx = order.indexOf(list.id);
+    const byId = id => boardData.lists.find(l => l.id === id);
+    const prev = byId(order[idx - 1]);
+    const next = byId(order[idx + 1]);
+    let position;
+    if (!prev && !next) position = list.position;
+    else if (!prev) position = next.position - 512;
+    else if (!next) position = prev.position + 1024;
+    else position = (prev.position + next.position) / 2;
+    if (position !== list.position) {
+      list.position = position;
+      boardData.lists.sort((a, b) => a.position - b.position || a.id - b.id);
+      await api('/lists/' + list.id, { method: 'PATCH', body: { position } });
+    }
+  };
+
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
 }
 
 /* ---------- Kéo-thả kiểu Trello ---------- */
@@ -1525,7 +1601,7 @@ function showPlanner() {
   setHash('#planner');
   watchBoard(null);
   for (const id of ['boardsView', 'boardView', 'calendarView']) $(id).classList.add('hidden');
-  for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn']) $(id).classList.add('hidden');
+  for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'viewTableBtn']) $(id).classList.add('hidden');
   $('boardTitle').textContent = '› Planner của tôi';
   delete document.body.dataset.bg;
   $('plannerView').classList.remove('hidden');
@@ -1658,6 +1734,72 @@ $('starBtn').onclick = async () => {
 };
 $('viewBoardBtn').onclick = () => setViewMode('board');
 $('viewCalBtn').onclick = () => setViewMode('calendar');
+$('viewTableBtn').onclick = () => setViewMode('table');
+
+/* ---------- Table view (bảng kê mọi thẻ — như Trello Table) ---------- */
+const tableSort = { key: 'list', dir: 1 };
+function renderTable() {
+  const root = $('tableView');
+  root.innerHTML = '';
+  const listTitle = id => boardData.lists.find(l => l.id === id)?.title || '';
+  const rows = boardData.cards.filter(cardMatchesFilter).map(c => ({
+    c,
+    list: listTitle(c.list_id),
+    members: membersOf(c.id).map(m => m.name).join(', '),
+    labels: labelsOf(c.id).map(id => labelById(id)).filter(Boolean),
+    due: c.due_date || '',
+    done: c.due_complete ? 1 : 0,
+  }));
+  const keyVal = r => ({ title: r.c.title.toLowerCase(), list: r.list, members: r.members,
+    due: r.due || '9999', done: r.done }[tableSort.key]);
+  rows.sort((a, b) => (keyVal(a) > keyVal(b) ? 1 : keyVal(a) < keyVal(b) ? -1 : 0) * tableSort.dir);
+
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const tr = document.createElement('tr');
+  for (const [key, label] of [['title', 'Thẻ'], ['list', 'Cột'], ['members', 'Thành viên'],
+                              ['labels', 'Nhãn'], ['due', 'Hạn'], ['done', '✓']]) {
+    const th = document.createElement('th');
+    th.textContent = label + (tableSort.key === key ? (tableSort.dir > 0 ? ' ↑' : ' ↓') : '');
+    if (tableSort.key === key) th.classList.add('sorted');
+    if (key !== 'labels') th.onclick = () => {
+      if (tableSort.key === key) tableSort.dir *= -1;
+      else { tableSort.key = key; tableSort.dir = 1; }
+      renderTable();
+    };
+    tr.appendChild(th);
+  }
+  thead.appendChild(tr);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const r of rows) {
+    const trr = document.createElement('tr');
+    const tdTitle = document.createElement('td');
+    tdTitle.textContent = r.c.title;
+    const tdList = document.createElement('td');
+    tdList.textContent = r.list;
+    const tdMem = document.createElement('td');
+    tdMem.textContent = r.members;
+    const tdLb = document.createElement('td');
+    for (const l of r.labels) {
+      const s = document.createElement('span');
+      s.className = 'pill';
+      s.style.background = l.color;
+      s.textContent = l.name || '';
+      tdLb.appendChild(s);
+    }
+    const tdDue = document.createElement('td');
+    const badge = dueBadge(r.c);
+    if (badge) tdDue.appendChild(badge);
+    const tdDone = document.createElement('td');
+    tdDone.textContent = r.done ? '✅' : '';
+    trr.append(tdTitle, tdList, tdMem, tdLb, tdDue, tdDone);
+    trr.onclick = () => openCardDialog(r.c);
+    tbody.appendChild(trr);
+  }
+  table.appendChild(tbody);
+  root.appendChild(table);
+}
 
 function panelFrame(title, backTo) {
   const panel = $('boardMenu');
@@ -1804,6 +1946,8 @@ async function openBoardMenu(view) {
       openBoardMenu('rules');
     };
     p.appendChild(addBtn);
+
+    renderExtraAutomations(p);
   }
   if (view === 'powerups') {
     const p = panelFrame('Tiện ích (Power-ups)', 'main');
@@ -1897,6 +2041,151 @@ async function openBoardMenu(view) {
   }
 }
 
+/* Automation mở rộng: theo lịch, theo ngày hạn, nút thẻ (trong panel Automation) */
+function renderExtraAutomations(p) {
+  const h = t => { const x = document.createElement('h4'); x.style.cssText = 'margin:18px 0 6px;font-size:13px'; x.textContent = t; p.appendChild(x); };
+  const rowEl = (text, delPath) => {
+    const row = document.createElement('div');
+    row.className = 'rule-item';
+    const span = document.createElement('span');
+    span.textContent = text;
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.textContent = '✕';
+    del.onclick = async () => { await api(delPath, { method: 'DELETE' }); await loadBoard(currentBoardId, true); openBoardMenu('rules'); };
+    row.append(span, del);
+    p.appendChild(row);
+  };
+  const listName = id => boardData.lists.find(l => l.id === Number(id))?.title || '?';
+  const labelName = id => labelById(Number(id))?.name || '■';
+  const DOW_NAMES = ['', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
+  const SORT_NAMES = { due: 'hạn chót', title: 'tên A→Z', created: 'mới tạo trước' };
+
+  /* --- Theo lịch --- */
+  h('⏰ Theo lịch (chạy mỗi sáng)');
+  for (const s of boardData.schedules || []) {
+    let a = {}; try { a = JSON.parse(s.actions); } catch {}
+    const what = a.sort ? `sắp xếp "${listName(a.sort.list_id)}" theo ${SORT_NAMES[a.sort.by] || a.sort.by}`
+      : a.archive_done_list_id ? `lưu trữ thẻ ✓ xong trong "${listName(a.archive_done_list_id)}"` : '(trống)';
+    rowEl(`${s.cadence === 'daily' ? 'Hằng ngày' : DOW_NAMES[s.weekday] + ' hằng tuần'} → ${what}`, '/schedules/' + s.id);
+  }
+  const sf = document.createElement('div');
+  sf.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <select class="field" id="schCad" style="width:auto">
+        <option value="daily">Hằng ngày</option><option value="weekly">Hằng tuần vào…</option></select>
+      <select class="field hidden" id="schDow" style="width:auto">
+        ${['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'].map((d, i) => `<option value="${i + 1}">${d}</option>`).join('')}</select>
+      <select class="field" id="schAct" style="width:auto">
+        <option value="sort">sắp xếp cột…</option><option value="archive">lưu trữ thẻ ✓ xong trong cột…</option></select>
+      <select class="field" id="schList" style="width:auto"></select>
+      <select class="field" id="schBy" style="width:auto">
+        <option value="due">theo hạn</option><option value="title">theo tên</option><option value="created">mới trước</option></select>
+      <button class="btn btn-primary" id="schAdd" style="padding:6px 10px">+</button>
+    </div>`;
+  p.appendChild(sf);
+  for (const l of boardData.lists) {
+    const o = document.createElement('option'); o.value = l.id; o.textContent = l.title;
+    sf.querySelector('#schList').appendChild(o);
+  }
+  sf.querySelector('#schCad').onchange = () =>
+    sf.querySelector('#schDow').classList.toggle('hidden', sf.querySelector('#schCad').value !== 'weekly');
+  sf.querySelector('#schAct').onchange = () =>
+    sf.querySelector('#schBy').classList.toggle('hidden', sf.querySelector('#schAct').value !== 'sort');
+  sf.querySelector('#schAdd').onclick = async () => {
+    const listId = Number(sf.querySelector('#schList').value);
+    const actions = sf.querySelector('#schAct').value === 'sort'
+      ? { sort: { list_id: listId, by: sf.querySelector('#schBy').value } }
+      : { archive_done_list_id: listId };
+    await api(`/boards/${currentBoardId}/schedules`, { method: 'POST', body: {
+      cadence: sf.querySelector('#schCad').value, weekday: Number(sf.querySelector('#schDow').value), actions } });
+    await loadBoard(currentBoardId, true);
+    openBoardMenu('rules');
+  };
+
+  /* --- Theo ngày hạn --- */
+  h('🔴 Theo ngày hạn (quét mỗi giờ, mỗi thẻ áp 1 lần)');
+  for (const r of boardData.dueRules || []) {
+    let a = {}; try { a = JSON.parse(r.actions); } catch {}
+    const parts = [];
+    if (a.label_id) parts.push(`gắn nhãn "${labelName(a.label_id)}"`);
+    if (a.move_list_id) parts.push(`chuyển sang "${listName(a.move_list_id)}"`);
+    rowEl(`${r.trigger === 'overdue' ? 'Khi thẻ QUÁ HẠN' : 'Trước hạn 1 ngày'} → ${parts.join(', ') || '(trống)'}`, '/due-rules/' + r.id);
+  }
+  const df = document.createElement('div');
+  df.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <select class="field" id="dueTrig" style="width:auto">
+        <option value="overdue">Khi quá hạn</option><option value="due_tomorrow">Trước hạn 1 ngày</option></select>
+      <select class="field" id="dueLabel" style="width:auto"><option value="">nhãn: không</option></select>
+      <select class="field" id="dueMove" style="width:auto"><option value="">chuyển cột: không</option></select>
+      <button class="btn btn-primary" id="dueAdd" style="padding:6px 10px">+</button>
+    </div>`;
+  p.appendChild(df);
+  for (const l of boardData.labels) {
+    const o = document.createElement('option'); o.value = l.id; o.textContent = 'nhãn: ' + (l.name || '■');
+    df.querySelector('#dueLabel').appendChild(o);
+  }
+  for (const l of boardData.lists) {
+    const o = document.createElement('option'); o.value = l.id; o.textContent = '→ ' + l.title;
+    df.querySelector('#dueMove').appendChild(o);
+  }
+  df.querySelector('#dueAdd').onclick = async () => {
+    const actions = {};
+    if (df.querySelector('#dueLabel').value) actions.label_id = Number(df.querySelector('#dueLabel').value);
+    if (df.querySelector('#dueMove').value) actions.move_list_id = Number(df.querySelector('#dueMove').value);
+    if (!Object.keys(actions).length) { toast('Chọn ít nhất một hành động'); return; }
+    await api(`/boards/${currentBoardId}/due-rules`, { method: 'POST', body: { trigger: df.querySelector('#dueTrig').value, actions } });
+    await loadBoard(currentBoardId, true);
+    openBoardMenu('rules');
+  };
+
+  /* --- Nút thẻ tùy chỉnh --- */
+  h('🔘 Nút thẻ (hiện trong mọi thẻ của board)');
+  for (const b of boardData.cardButtons || []) {
+    let a = {}; try { a = JSON.parse(b.actions); } catch {}
+    const parts = [];
+    if (a.move_list_id) parts.push(`chuyển → "${listName(a.move_list_id)}"`);
+    if (a.due_shift_days !== undefined && a.due_shift_days !== '') parts.push(`hạn ${a.due_shift_days >= 0 ? '+' : ''}${a.due_shift_days} ngày`);
+    if (a.label_id) parts.push(`nhãn "${labelName(a.label_id)}"`);
+    if (a.complete) parts.push('đánh dấu ✓');
+    rowEl(`"${b.name}" → ${parts.join(', ') || '(trống)'}`, '/buttons/' + b.id);
+  }
+  const bf = document.createElement('div');
+  bf.innerHTML = `
+    <input type="text" id="btnName" placeholder="Tên nút (vd: Đẩy sang Duyệt)" style="margin-bottom:6px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <select class="field" id="btnMove" style="width:auto"><option value="">chuyển cột: không</option></select>
+      <input type="text" id="btnDue" placeholder="hạn ±ngày" style="width:80px">
+      <select class="field" id="btnLabel" style="width:auto"><option value="">nhãn: không</option></select>
+      <label style="margin:0;font-weight:400;display:flex;gap:4px;align-items:center;font-size:13px">
+        <input type="checkbox" id="btnDone" style="width:auto">✓ xong</label>
+      <button class="btn btn-primary" id="btnAdd" style="padding:6px 10px">+</button>
+    </div>`;
+  p.appendChild(bf);
+  for (const l of boardData.lists) {
+    const o = document.createElement('option'); o.value = l.id; o.textContent = '→ ' + l.title;
+    bf.querySelector('#btnMove').appendChild(o);
+  }
+  for (const l of boardData.labels) {
+    const o = document.createElement('option'); o.value = l.id; o.textContent = 'nhãn: ' + (l.name || '■');
+    bf.querySelector('#btnLabel').appendChild(o);
+  }
+  bf.querySelector('#btnAdd').onclick = async () => {
+    const name = bf.querySelector('#btnName').value.trim();
+    if (!name) { toast('Đặt tên nút trước'); return; }
+    const actions = {};
+    if (bf.querySelector('#btnMove').value) actions.move_list_id = Number(bf.querySelector('#btnMove').value);
+    if (bf.querySelector('#btnDue').value.trim() !== '') actions.due_shift_days = Number(bf.querySelector('#btnDue').value);
+    if (bf.querySelector('#btnLabel').value) actions.label_id = Number(bf.querySelector('#btnLabel').value);
+    if (bf.querySelector('#btnDone').checked) actions.complete = true;
+    if (!Object.keys(actions).length) { toast('Chọn ít nhất một hành động'); return; }
+    await api(`/boards/${currentBoardId}/buttons`, { method: 'POST', body: { name, actions } });
+    await loadBoard(currentBoardId, true);
+    openBoardMenu('rules');
+  };
+}
+
 function activityText(a) {
   let d = {};
   try { d = JSON.parse(a.data); } catch {}
@@ -1918,6 +2207,7 @@ function activityText(a) {
     case 'board_closed': return 'đã đóng board';
     case 'board_reopened': return 'đã mở lại board';
     case 'rule_applied': return `⚡ Automation đã chạy trên ${card} (${(d.applied || []).join(', ')})`;
+    case 'card_merged': return `⇄ đã hợp nhất thẻ "${d.from}" vào "${d.into}"`;
     default: return a.type;
   }
 }
@@ -1996,6 +2286,23 @@ function openCardDialog(c) {
   $('aiOut').classList.add('hidden');
   $('aiOut').textContent = '';
   $('watchCard').textContent = boardData.myWatches?.includes(c.id) ? '👁 Đang theo dõi' : '👁 Theo dõi';
+
+  // Nút thẻ tùy chỉnh (Automation → Nút thẻ)
+  const fcb = $('fCardButtons');
+  fcb.innerHTML = '';
+  for (const b of boardData.cardButtons || []) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip';
+    btn.textContent = '🔘 ' + b.name;
+    btn.onclick = async () => {
+      await api(`/cards/${c.id}/apply-button/${b.id}`, { method: 'POST' });
+      toast(`Đã chạy "${b.name}"`);
+      $('cardDialog').close();
+      editingCard = null;
+    };
+    fcb.appendChild(btn);
+  }
   const voteBtn = $('voteCard');
   voteBtn.classList.toggle('hidden', !powerups().vote);
   const refreshVoteBtn = () => {
@@ -2249,6 +2556,49 @@ $('linkCard').onclick = async () => {
   const url = location.origin + location.pathname + '#c/' + editingCard.id;
   try { await navigator.clipboard.writeText(url); toast('Đã chép link thẻ — dán vào chat để chia sẻ'); }
   catch { prompt('Chép link thẻ:', url); }
+};
+
+$('mergeCard').onclick = () => {
+  if (!editingCard) return;
+  closeMiniMenu();
+  const m = document.createElement('div');
+  m.className = 'minimenu';
+  m.style.top = '20vh';
+  m.style.left = 'calc(50% - 115px)';
+  const h = document.createElement('h5');
+  h.textContent = 'Hợp nhất vào thẻ nào?';
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:12px;color:var(--muted);padding:0 4px 6px';
+  hint.textContent = 'Checklist, bình luận, đính kèm, nhãn, người… sẽ gộp sang thẻ đích; thẻ này được lưu trữ.';
+  m.append(h, hint);
+  const sel = document.createElement('select');
+  sel.className = 'field';
+  for (const l of boardData.lists) {
+    for (const c of cardsOf(l.id).filter(x => x.id !== editingCard.id)) {
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = `[${l.title}] ${c.title.slice(0, 40)}`;
+      sel.appendChild(o);
+    }
+  }
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.style.marginTop = '8px';
+  ok.textContent = 'Hợp nhất';
+  ok.onclick = async e => {
+    e.stopPropagation();
+    if (!sel.value) return;
+    await api(`/cards/${editingCard.id}/merge`, { method: 'POST', body: { target_id: Number(sel.value) } });
+    closeMiniMenu();
+    const target = Number(sel.value);
+    editingCard = null;
+    $('cardDialog').close();
+    toast('Đã hợp nhất thẻ');
+    location.hash = '#c/' + target;
+    applyHash();
+  };
+  m.append(sel, ok);
+  document.body.appendChild(m);
 };
 
 $('watchCard').onclick = async () => {
