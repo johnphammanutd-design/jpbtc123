@@ -94,6 +94,18 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
    Còn lại cho đợt sau: Table/Timeline view, kéo-thả sắp xếp cột, board riêng tư, quick edit, phím tắt.
    User cũng dự định gửi video/ảnh giao diện mẫu để tinh chỉnh animation thêm.
 
+5. **Đợt 3 — xây 16-17/10/2026** sau khi đào sâu Trello bản mới bằng Claude in Chrome
+   (tài khoản đăng nhập của user) + REA đo Trello thật qua CDP (xác nhận ghost 4° trùng app ta;
+   xem `nghien-cuu-trello-dao-sau.md` mục 2b/2c):
+   - **Màu nền cột** (10 màu Trello, menu cột ⋯), **thu gọn cột** (dải dọc, lưu theo người dùng),
+     **sắp xếp thẻ trong cột** (hạn/tên/mới tạo), **lưu trữ cột** chuyển vào menu ⋯.
+   - **Hoàn thành cả thẻ**: nút ○ trên thẻ (hover) → ✓ xanh; **sửa nhanh ✎** đổi tiêu đề không mở thẻ.
+   - **Bộ lọc mở rộng**: Không có ai / Của tôi / Không nhãn / Đã–Chưa hoàn thành.
+   - **Theo dõi thẻ 👁**: nhận thông báo mọi bình luận/di chuyển/hoàn thành dù không là thành viên.
+   - **CSS kéo-thả theo số liệu REA đo Trello thật**: placeholder viền đứt nét, cột đích sáng viền.
+   REA drag regression PASS sau toàn bộ thay đổi. Đợt 4 ứng viên: automation theo lịch/ngày hạn
+   + nút thẻ/bảng, hợp nhất thẻ (merge), Table view, kéo-thả cột.
+
 ## Ghi chú cho phiên Claude kế tiếp
 
 - Chạy local: `cd app && npm install && npm start` → localhost:3000 (admin/admin123

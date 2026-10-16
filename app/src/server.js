@@ -202,6 +202,12 @@ function pushNotification(userId, actorId, type, boardId, cardId, data = {}) {
 const cardMemberIds = cardId =>
   db.prepare('SELECT user_id FROM card_members WHERE card_id = ?').all(cardId).map(r => r.user_id);
 
+// Người nhận thông báo của một thẻ: thành viên ∪ người theo dõi (watch)
+const cardRecipientIds = cardId => [...new Set([
+  ...cardMemberIds(cardId),
+  ...db.prepare('SELECT user_id FROM card_watchers WHERE card_id = ?').all(cardId).map(r => r.user_id),
+])];
+
 // @mention trong bình luận: @username (không dấu cách)
 function mentionedUserIds(text) {
   const names = [...String(text).matchAll(/@([a-z0-9._-]+)/gi)].map(m => m[1].toLowerCase());
@@ -362,7 +368,12 @@ app.get('/api/boards/:id', auth, (req, res) => {
     JOIN cards c ON c.id = v.card_id JOIN lists l ON l.id = c.list_id
     WHERE l.board_id = ? AND v.user_id = ?
   `).all(board.id, req.user.id).map(r => r.card_id);
-  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes });
+  const myWatches = db.prepare(`
+    SELECT w.card_id FROM card_watchers w
+    JOIN cards c ON c.id = w.card_id JOIN lists l ON l.id = c.list_id
+    WHERE l.board_id = ? AND w.user_id = ?
+  `).all(board.id, req.user.id).map(r => r.card_id);
+  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches });
 });
 
 app.get('/api/boards/:id/archived', auth, (req, res) => {
@@ -460,16 +471,34 @@ app.post('/api/lists', auth, (req, res) => {
 
 app.patch('/api/lists/:id', auth, (req, res) => {
   const boardId = boardIdOfList(req.params.id);
-  const { title, position, archived, wip_limit } = req.body || {};
+  const { title, position, archived, wip_limit, color } = req.body || {};
   if (title !== undefined) db.prepare('UPDATE lists SET title = ? WHERE id = ?').run(String(title).trim(), req.params.id);
   if (position !== undefined) db.prepare('UPDATE lists SET position = ? WHERE id = ?').run(Number(position), req.params.id);
   if (wip_limit !== undefined) db.prepare('UPDATE lists SET wip_limit = ? WHERE id = ?').run(Math.max(0, Number(wip_limit) || 0), req.params.id);
+  if (color !== undefined) db.prepare('UPDATE lists SET color = ? WHERE id = ?').run(String(color), req.params.id);
   if (archived !== undefined) {
     db.prepare('UPDATE lists SET archived = ? WHERE id = ?').run(archived ? 1 : 0, req.params.id);
     logActivity(boardId, null, req.user.id, archived ? 'list_archived' : 'list_restored',
       { title: db.prepare('SELECT title FROM lists WHERE id = ?').get(req.params.id)?.title });
   }
   notifyBoard(boardId);
+  res.json({ ok: true });
+});
+
+// Sắp xếp một lần các thẻ trong cột (như menu cột của Trello)
+app.post('/api/lists/:id/sort', auth, (req, res) => {
+  const listId = Number(req.params.id);
+  const by = String(req.body?.by || '');
+  const orders = {
+    title: "ORDER BY title COLLATE NOCASE",
+    due: "ORDER BY CASE WHEN due_date = '' THEN 1 ELSE 0 END, due_date",
+    created: 'ORDER BY created_at DESC, id DESC',
+  };
+  if (!orders[by]) return res.status(400).json({ error: 'Kiểu sắp xếp không hợp lệ' });
+  const cards = db.prepare(`SELECT id FROM cards WHERE list_id = ? AND archived = 0 ${orders[by]}`).all(listId);
+  const upd = db.prepare('UPDATE cards SET position = ? WHERE id = ?');
+  cards.forEach((c, i) => upd.run((i + 1) * 1024, c.id));
+  notifyBoard(boardIdOfList(listId));
   res.json({ ok: true });
 });
 
@@ -550,7 +579,7 @@ app.patch('/api/cards/:id', auth, (req, res) => {
     const toList = db.prepare('SELECT title, board_id FROM lists WHERE id = ?').get(Number(b.list_id));
     logActivity(toList?.board_id || boardId, id, req.user.id, 'card_moved',
       { from: current.list_title, to: toList?.title });
-    for (const uid of cardMemberIds(id)) {
+    for (const uid of cardRecipientIds(id)) {
       pushNotification(uid, req.user.id, 'moved', toList?.board_id || boardId, id,
         { title: current.title, from: current.list_title, to: toList?.title });
     }
@@ -562,6 +591,11 @@ app.patch('/api/cards/:id', auth, (req, res) => {
   }
   if (b.due_complete !== undefined && !!b.due_complete !== !!current.due_complete) {
     logActivity(boardId, id, req.user.id, b.due_complete ? 'card_completed' : 'card_uncompleted', {});
+    if (b.due_complete) {
+      for (const uid of cardRecipientIds(id)) {
+        pushNotification(uid, req.user.id, 'completed', boardId, id, { title: current.title });
+      }
+    }
   }
   notifyBoard(boardId);
   res.json({ ok: true });
@@ -680,7 +714,7 @@ app.post('/api/cards/:id/comments', auth, (req, res) => {
   for (const uid of mentioned) {
     pushNotification(uid, req.user.id, 'mention', boardId, cardId, { title: cardTitle, text: text.slice(0, 80) });
   }
-  for (const uid of cardMemberIds(cardId)) {
+  for (const uid of cardRecipientIds(cardId)) {
     if (!mentioned.has(uid)) pushNotification(uid, req.user.id, 'comment', boardId, cardId, { title: cardTitle, text: text.slice(0, 80) });
   }
   notifyBoard(boardId);
@@ -784,6 +818,16 @@ app.get('/u/:file', (req, res) => {
   }
   res.set('Cache-Control', 'private, max-age=86400');
   res.sendFile(full);
+});
+
+/* ---------- Theo dõi thẻ (watch) ---------- */
+
+app.post('/api/cards/:id/watch', auth, (req, res) => {
+  const cardId = Number(req.params.id);
+  const has = db.prepare('SELECT 1 FROM card_watchers WHERE card_id = ? AND user_id = ?').get(cardId, req.user.id);
+  if (has) db.prepare('DELETE FROM card_watchers WHERE card_id = ? AND user_id = ?').run(cardId, req.user.id);
+  else db.prepare('INSERT INTO card_watchers (card_id, user_id) VALUES (?, ?)').run(cardId, req.user.id);
+  res.json({ watching: !has });
 });
 
 /* ---------- Vote trên thẻ (Power-up) ---------- */

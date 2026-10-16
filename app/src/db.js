@@ -213,6 +213,19 @@ CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read, id);
 CREATE INDEX IF NOT EXISTS idx_inbox_user ON inbox_items(user_id, position);
 `);
 
+/* ---------- Migration v4: đợt 3 — màu cột, theo dõi thẻ ---------- */
+
+if (!hasColumn('lists', 'color'))
+  db.exec("ALTER TABLE lists ADD COLUMN color TEXT NOT NULL DEFAULT ''");
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS card_watchers (
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (card_id, user_id)
+);
+`);
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

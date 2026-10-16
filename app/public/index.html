@@ -104,10 +104,13 @@
   .card.drag-ghost { position: fixed; z-index: 1000; pointer-events: none; margin: 0;
     transform: rotate(4deg); box-shadow: 0 12px 24px rgba(9,30,66,.45); cursor: grabbing; }
   .card.drag-ghost.dropping { transition: top .18s cubic-bezier(.2,0,0,1), left .18s cubic-bezier(.2,0,0,1), transform .18s cubic-bezier(.2,0,0,1); transform: rotate(0deg); }
-  .card-placeholder { background: rgba(9,30,66,.14); border-radius: var(--radius); flex: none; }
+  /* Theo số liệu REA đo Trello 10/2026: placeholder viền đứt nét, cột đích sáng viền */
+  .card-placeholder { background: rgba(9,30,66,.06); border: 2px dashed rgba(94,108,132,.6);
+    border-radius: var(--radius); flex: none; box-sizing: border-box; }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .card-placeholder { background: rgba(255,255,255,.12); }
+    :root:not([data-theme="light"]) .card-placeholder { background: rgba(255,255,255,.06); border-color: rgba(140,155,171,.6); }
   }
+  .list.drag-over { outline: 2px solid var(--accent); outline-offset: -1px; }
   body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; }
   .card.shifting { transition: transform .15s ease; }
   .card.filtered-out { display: none; }
@@ -292,6 +295,36 @@
     white-space: pre-wrap; }
   .cover-picker button.imgcover { width: auto; padding: 0 8px; font-size: 11px; background: var(--list-bg); color: var(--text); }
 
+  /* Đợt 3: cột thu gọn, menu cột, hoàn thành thẻ, sửa nhanh */
+  .list.collapsed { width: 42px; flex: 0 0 42px; cursor: pointer; padding: 8px 4px; }
+  .list.collapsed .cards, .list.collapsed button.add { display: none; }
+  .list.collapsed .list-header { flex-direction: column; gap: 8px; padding: 2px; }
+  .list.collapsed .list-header input { writing-mode: vertical-rl; height: auto; min-height: 140px;
+    cursor: pointer; pointer-events: none; }
+  .list.collapsed .list-header .del { display: none; }
+  .minimenu { position: fixed; background: var(--surface); color: var(--text); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35); z-index: 80; padding: 8px; width: 230px; }
+  .minimenu h5 { margin: 8px 4px 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .minimenu button.mi { display: block; width: 100%; text-align: left; border: 0; background: transparent;
+    color: var(--text); padding: 7px 8px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 13px; }
+  .minimenu button.mi:hover { background: var(--list-bg); }
+  .minimenu .swatches { display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 4px; }
+  .minimenu .swatches button { width: 32px; height: 22px; border-radius: 5px; border: 2px solid transparent; cursor: pointer; }
+  .minimenu .swatches button.on { border-color: var(--text); }
+  .card { position: relative; }
+  .card .qe { position: absolute; top: 4px; right: 4px; border: 0; border-radius: 6px; cursor: pointer;
+    background: var(--surface); color: var(--muted); padding: 2px 6px; opacity: 0; transition: opacity .12s;
+    box-shadow: var(--shadow); z-index: 2; }
+  .card:hover .qe { opacity: 1; }
+  .card .cpl { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--muted); flex: none;
+    display: none; align-items: center; justify-content: center; font-size: 10px; cursor: pointer;
+    background: transparent; color: #fff; padding: 0; line-height: 1; margin-right: 6px; vertical-align: -3px; }
+  .card:hover .cpl { display: inline-flex; }
+  .card .cpl.done { display: inline-flex; background: var(--ok); border-color: var(--ok); }
+  .card .title { display: flex; align-items: baseline; }
+  .card .title .t { flex: 1; }
+  .card.is-complete .title .t { color: var(--muted); }
+
   @media (max-width: 600px) { .list, .add-list { width: 260px; flex-basis: 260px; } #searchBox { width: 110px; }
     .plan-layout { grid-template-columns: 1fr; } .plan-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>
@@ -359,6 +392,11 @@
     <button class="chip" data-due="week">Trong 7 ngày</button>
     <button class="chip" data-due="none">Không có hạn</button>
   </div>
+  <h4>Trạng thái thẻ</h4>
+  <div class="chip-row" id="filterStatus">
+    <button class="chip" data-status="done">Đã hoàn thành</button>
+    <button class="chip" data-status="undone">Chưa hoàn thành</button>
+  </div>
   <div class="dialog-actions">
     <button class="btn" id="filterClear">Xóa lọc</button>
   </div>
@@ -417,6 +455,7 @@
       <button type="button" id="closeCard">Đóng</button>
       <button type="button" class="btn" id="copyCard">Sao chép</button>
       <button type="button" class="btn" id="linkCard" title="Chép link thẻ">🔗 Link</button>
+      <button type="button" class="btn" id="watchCard" title="Nhận thông báo mọi thay đổi của thẻ">👁 Theo dõi</button>
       <button type="button" class="btn hidden" id="voteCard">👍 Vote</button>
       <button type="button" class="btn-danger" id="archiveCard">Lưu trữ</button>
     </div>
@@ -472,7 +511,7 @@ let calMonth = null;    // Date đầu tháng đang xem
 let pendingOpenCardId = null;
 let aiEnabled = false;
 let plannerWeekStart = null; // Date thứ 2 của tuần đang xem
-const filter = { text: '', members: new Set(), labels: new Set(), due: null };
+const filter = { text: '', members: new Set(), labels: new Set(), due: null, status: null };
 
 // Power-ups bật/tắt theo board (vote, wip, ai)
 function powerups() {
@@ -720,7 +759,7 @@ const membersOf = cardId => boardData.cardMembers.filter(x => x.card_id === card
 const labelById = id => boardData.labels.find(l => l.id === id);
 
 function filterActive() {
-  return filter.text || filter.members.size || filter.labels.size || filter.due;
+  return filter.text || filter.members.size || filter.labels.size || filter.due || filter.status;
 }
 
 function cardMatchesFilter(c) {
@@ -728,12 +767,17 @@ function cardMatchesFilter(c) {
   if (filter.text && !c.title.toLowerCase().includes(filter.text.toLowerCase())) return false;
   if (filter.members.size) {
     const ms = membersOf(c.id).map(m => m.user_id);
-    if (![...filter.members].some(id => ms.includes(id))) return false;
+    const hit = [...filter.members].some(id =>
+      id === 'none' ? ms.length === 0 : id === 'me' ? ms.includes(me.id) : ms.includes(id));
+    if (!hit) return false;
   }
   if (filter.labels.size) {
     const ls = labelsOf(c.id);
-    if (![...filter.labels].some(id => ls.includes(id))) return false;
+    const hit = [...filter.labels].some(id => id === 'none' ? ls.length === 0 : ls.includes(id));
+    if (!hit) return false;
   }
+  if (filter.status === 'done' && !c.due_complete) return false;
+  if (filter.status === 'undone' && c.due_complete) return false;
   if (filter.due) {
     const today = new Date().toISOString().slice(0, 10);
     const week = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
@@ -762,9 +806,23 @@ function renderBoard() {
   $('filterBtn').classList.toggle('on', !!filterActive());
 }
 
+/* Thu gọn cột: lưu theo người dùng trong trình duyệt */
+function collapsedSet() {
+  try { return new Set(JSON.parse(localStorage.getItem('kanban-collapsed-' + currentBoardId) || '[]')); }
+  catch { return new Set(); }
+}
+function toggleCollapsed(listId) {
+  const s = collapsedSet();
+  s.has(listId) ? s.delete(listId) : s.add(listId);
+  try { localStorage.setItem('kanban-collapsed-' + currentBoardId, JSON.stringify([...s])); } catch {}
+  renderBoard();
+}
+
 function renderList(list) {
   const el = document.createElement('section');
   el.className = 'list';
+  el.dataset.listEl = list.id;
+  if (list.color) el.style.background = `color-mix(in srgb, ${list.color} 32%, var(--list-bg))`;
 
   const header = document.createElement('div');
   header.className = 'list-header';
@@ -787,16 +845,22 @@ function renderList(list) {
       if (v !== null) await api('/lists/' + list.id, { method: 'PATCH', body: { wip_limit: Number(v) || 0 } });
     };
   }
-  const archBtn = document.createElement('button');
-  archBtn.className = 'del';
-  archBtn.textContent = '✕';
-  archBtn.title = 'Lưu trữ cột';
-  archBtn.onclick = () => {
-    if (confirm(`Lưu trữ cột "${list.title}"? (khôi phục được trong Menu → Mục lưu trữ)`)) {
-      api('/lists/' + list.id, { method: 'PATCH', body: { archived: true } });
-    }
-  };
-  header.append(nameInput, count, archBtn);
+
+  if (collapsedSet().has(list.id)) {
+    el.classList.add('collapsed');
+    el.title = 'Bấm để mở rộng cột';
+    el.onclick = () => toggleCollapsed(list.id);
+    header.append(count, nameInput);
+    el.appendChild(header);
+    return el;
+  }
+
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'del';
+  menuBtn.textContent = '⋯';
+  menuBtn.title = 'Thao tác với cột';
+  menuBtn.onclick = e => { e.stopPropagation(); openListMenu(list, menuBtn); };
+  header.append(nameInput, count, menuBtn);
 
   const cardsEl = document.createElement('div');
   cardsEl.className = 'cards';
@@ -814,6 +878,61 @@ function renderList(list) {
   el.append(header, cardsEl, addBtn);
   return el;
 }
+
+/* Menu cột kiểu Trello: màu, sắp xếp, thu gọn, lưu trữ */
+const LIST_COLORS = ['#216e4e', '#7f5f01', '#a54800', '#ae2e24', '#5e4db2',
+                     '#0055cc', '#206a83', '#4c6b1f', '#943d73', '#596773'];
+function closeMiniMenu() { document.querySelector('.minimenu')?.remove(); }
+function openListMenu(list, anchor) {
+  closeMiniMenu();
+  const m = document.createElement('div');
+  m.className = 'minimenu';
+  const r = anchor.getBoundingClientRect();
+  m.style.top = Math.min(r.bottom + 6, innerHeight - 380) + 'px';
+  m.style.left = Math.min(r.left, innerWidth - 240) + 'px';
+
+  const mi = (label, fn) => {
+    const b = document.createElement('button');
+    b.className = 'mi';
+    b.textContent = label;
+    b.onclick = async e => { e.stopPropagation(); closeMiniMenu(); await fn(); };
+    m.appendChild(b);
+  };
+  const h5 = t => { const h = document.createElement('h5'); h.textContent = t; m.appendChild(h); };
+
+  mi('⇤ Thu gọn cột', () => toggleCollapsed(list.id));
+
+  h5('Sắp xếp thẻ theo');
+  mi('Hạn chót', () => api(`/lists/${list.id}/sort`, { method: 'POST', body: { by: 'due' } }));
+  mi('Tên thẻ (A→Z)', () => api(`/lists/${list.id}/sort`, { method: 'POST', body: { by: 'title' } }));
+  mi('Mới tạo trước', () => api(`/lists/${list.id}/sort`, { method: 'POST', body: { by: 'created' } }));
+
+  h5('Màu cột');
+  const sw = document.createElement('div');
+  sw.className = 'swatches';
+  for (const c of LIST_COLORS) {
+    const b = document.createElement('button');
+    b.style.background = c;
+    if (list.color === c) b.classList.add('on');
+    b.onclick = async e => { e.stopPropagation(); closeMiniMenu(); await api('/lists/' + list.id, { method: 'PATCH', body: { color: c } }); };
+    sw.appendChild(b);
+  }
+  m.appendChild(sw);
+  if (list.color) mi('✕ Gỡ màu', () => api('/lists/' + list.id, { method: 'PATCH', body: { color: '' } }));
+
+  h5('Khác');
+  mi('🗃 Lưu trữ cột', () => {
+    if (confirm(`Lưu trữ cột "${list.title}"? (khôi phục trong Menu → Mục lưu trữ)`)) {
+      return api('/lists/' + list.id, { method: 'PATCH', body: { archived: true } });
+    }
+  });
+
+  document.body.appendChild(m);
+}
+document.addEventListener('click', e => {
+  if (!e.target.isConnected) return;
+  if (!e.target.closest('.minimenu')) closeMiniMenu();
+});
 
 function avatarEl(name, userId) {
   const a = document.createElement('span');
@@ -874,10 +993,37 @@ function renderCard(c) {
     inner.appendChild(wrap);
   }
 
+  if (c.due_complete) el.classList.add('is-complete');
   const title = document.createElement('div');
   title.className = 'title';
-  title.textContent = c.title;
+  const cpl = document.createElement('button');
+  cpl.className = 'cpl' + (c.due_complete ? ' done' : '');
+  cpl.textContent = c.due_complete ? '✓' : '';
+  cpl.title = c.due_complete ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành thẻ';
+  cpl.addEventListener('pointerdown', e => e.stopPropagation());
+  cpl.onclick = e => {
+    e.stopPropagation();
+    api('/cards/' + c.id, { method: 'PATCH', body: { due_complete: !c.due_complete } });
+  };
+  const t = document.createElement('span');
+  t.className = 't';
+  t.textContent = c.title;
+  title.append(cpl, t);
   inner.appendChild(title);
+
+  const qe = document.createElement('button');
+  qe.className = 'qe';
+  qe.textContent = '✎';
+  qe.title = 'Sửa nhanh tiêu đề';
+  qe.addEventListener('pointerdown', e => e.stopPropagation());
+  qe.onclick = e => {
+    e.stopPropagation();
+    const v = prompt('Tiêu đề thẻ:', c.title);
+    if (v !== null && v.trim() && v.trim() !== c.title) {
+      api('/cards/' + c.id, { method: 'PATCH', body: { title: v.trim() } });
+    }
+  };
+  el.appendChild(qe);
 
   const meta = document.createElement('div');
   meta.className = 'meta';
@@ -1028,6 +1174,11 @@ function positionPlaceholder(ev, placeholder) {
   const already = placeholder.parentElement === target &&
     (insertBefore ? placeholder.nextElementSibling === insertBefore
                   : placeholder === [...target.children].at(-1));
+  // Cột đích sáng viền trong lúc kéo (theo hành vi Trello bản mới, đo 10/2026)
+  for (const l of document.querySelectorAll('.list.drag-over')) {
+    if (l !== target.closest('.list')) l.classList.remove('drag-over');
+  }
+  target.closest('.list')?.classList.add('drag-over');
   if (already) return;
   flipShift(() => {
     if (insertBefore) target.insertBefore(placeholder, insertBefore);
@@ -1160,15 +1311,24 @@ function renderCalendar() {
 function renderFilterPop() {
   const fm = $('filterMembers');
   fm.innerHTML = '';
-  for (const u of users.filter(u => !u.disabled)) {
+  const memberChip = (key, label) => {
     const b = document.createElement('button');
-    b.className = 'chip' + (filter.members.has(u.id) ? ' on' : '');
-    b.textContent = u.name;
-    b.onclick = () => { filter.members.has(u.id) ? filter.members.delete(u.id) : filter.members.add(u.id); render(); };
+    b.className = 'chip' + (filter.members.has(key) ? ' on' : '');
+    b.textContent = label;
+    b.onclick = () => { filter.members.has(key) ? filter.members.delete(key) : filter.members.add(key); render(); };
     fm.appendChild(b);
-  }
+  };
+  memberChip('none', 'Không có ai');
+  memberChip('me', '👤 Của tôi');
+  for (const u of users.filter(u => !u.disabled)) memberChip(u.id, u.name);
+
   const fl = $('filterLabels');
   fl.innerHTML = '';
+  const noLb = document.createElement('button');
+  noLb.className = 'chip' + (filter.labels.has('none') ? ' on' : '');
+  noLb.textContent = 'Không nhãn';
+  noLb.onclick = () => { filter.labels.has('none') ? filter.labels.delete('none') : filter.labels.add('none'); render(); };
+  fl.appendChild(noLb);
   for (const l of boardData?.labels || []) {
     const b = document.createElement('button');
     b.className = 'chip' + (filter.labels.has(l.id) ? ' on' : '');
@@ -1181,6 +1341,10 @@ function renderFilterPop() {
     b.classList.toggle('on', filter.due === b.dataset.due);
     b.onclick = () => { filter.due = filter.due === b.dataset.due ? null : b.dataset.due; render(); };
   }
+  for (const b of $('filterStatus').children) {
+    b.classList.toggle('on', filter.status === b.dataset.status);
+    b.onclick = () => { filter.status = filter.status === b.dataset.status ? null : b.dataset.status; render(); };
+  }
 }
 $('filterBtn').onclick = () => $('filterPop').classList.toggle('hidden');
 $('filterText').oninput = () => { filter.text = $('filterText').value.trim(); render(); };
@@ -1189,6 +1353,7 @@ $('filterClear').onclick = () => {
   filter.members.clear();
   filter.labels.clear();
   filter.due = null;
+  filter.status = null;
   $('filterText').value = '';
   render();
 };
@@ -1215,6 +1380,7 @@ function notifText(n) {
     case 'moved': return `${who} đã chuyển ${card} từ "${d.from}" sang "${d.to}"`;
     case 'due_soon': return `⏰ ${card} đến hạn ${d.due?.split('-').reverse().slice(0, 2).join('/')}`;
     case 'due_overdue': return `🔴 ${card} đã TRỄ HẠN (${d.due?.split('-').reverse().slice(0, 2).join('/')})`;
+    case 'completed': return `✅ ${who} đã hoàn thành ${card}`;
     default: return n.type;
   }
 }
@@ -1829,6 +1995,7 @@ function openCardDialog(c) {
   $('aiSection').classList.toggle('hidden', !(aiEnabled && powerups().ai));
   $('aiOut').classList.add('hidden');
   $('aiOut').textContent = '';
+  $('watchCard').textContent = boardData.myWatches?.includes(c.id) ? '👁 Đang theo dõi' : '👁 Theo dõi';
   const voteBtn = $('voteCard');
   voteBtn.classList.toggle('hidden', !powerups().vote);
   const refreshVoteBtn = () => {
@@ -2082,6 +2249,16 @@ $('linkCard').onclick = async () => {
   const url = location.origin + location.pathname + '#c/' + editingCard.id;
   try { await navigator.clipboard.writeText(url); toast('Đã chép link thẻ — dán vào chat để chia sẻ'); }
   catch { prompt('Chép link thẻ:', url); }
+};
+
+$('watchCard').onclick = async () => {
+  if (!editingCard) return;
+  const r = await api(`/cards/${editingCard.id}/watch`, { method: 'POST' });
+  boardData.myWatches = boardData.myWatches || [];
+  if (r.watching) boardData.myWatches.push(editingCard.id);
+  else boardData.myWatches = boardData.myWatches.filter(id => id !== editingCard.id);
+  $('watchCard').textContent = r.watching ? '👁 Đang theo dõi' : '👁 Theo dõi';
+  toast(r.watching ? 'Sẽ báo bạn mọi thay đổi của thẻ này' : 'Đã bỏ theo dõi');
 };
 
 $('voteCard').onclick = async () => {
