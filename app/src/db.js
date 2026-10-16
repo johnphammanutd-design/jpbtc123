@@ -278,6 +278,37 @@ CREATE TABLE IF NOT EXISTS board_watchers (
 );
 `);
 
+/* ---------- Migration v7: đợt 6 — riêng tư, trường tùy chỉnh, mẫu, mirror ---------- */
+
+if (!hasColumn('boards', 'visibility'))
+  db.exec("ALTER TABLE boards ADD COLUMN visibility TEXT NOT NULL DEFAULT 'workspace'"); // workspace | private
+if (!hasColumn('cards', 'is_template'))
+  db.exec('ALTER TABLE cards ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0');
+if (!hasColumn('cards', 'mirror_of'))
+  db.exec('ALTER TABLE cards ADD COLUMN mirror_of INTEGER REFERENCES cards(id) ON DELETE CASCADE');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS board_members (
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (board_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS board_fields (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'text',   -- text | number | date | select
+  options TEXT NOT NULL DEFAULT '[]',  -- cho type select
+  position REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS card_field_values (
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  field_id INTEGER NOT NULL REFERENCES board_fields(id) ON DELETE CASCADE,
+  value TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (card_id, field_id)
+);
+`);
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

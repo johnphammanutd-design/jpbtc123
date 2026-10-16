@@ -433,6 +433,10 @@
     <textarea id="fDesc" placeholder="Bối cảnh, yêu cầu, link tài liệu…"></textarea>
     <label>Thành viên</label>
     <div class="member-row" id="fMembers"></div>
+    <div id="fFieldsWrap" class="hidden">
+      <label>Trường tùy chỉnh</label>
+      <div id="fFields" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+    </div>
     <label>Nhãn <button type="button" class="ghost" id="addLabelBtn" style="width:auto;display:inline;padding:2px 8px">+ nhãn mới</button></label>
     <div id="fLabels"></div>
     <label>Ngày</label>
@@ -489,6 +493,8 @@
       <button type="button" id="closeCard">Đóng</button>
       <button type="button" class="btn" id="copyCard">Sao chép</button>
       <button type="button" class="btn" id="mergeCard" title="Gộp thẻ này vào thẻ khác">⇄ Hợp nhất</button>
+      <button type="button" class="btn" id="templateCard" title="Mẫu dùng lại qua nút ⧉ ở đáy cột">📋 Mẫu</button>
+      <button type="button" class="btn" id="mirrorCard" title="Tạo thẻ phản chiếu ở board khác, tự đồng bộ">🪞 Đối xứng</button>
       <button type="button" class="btn" id="linkCard" title="Chép link thẻ">🔗 Link</button>
       <button type="button" class="btn" id="watchCard" title="Nhận thông báo mọi thay đổi của thẻ">👁 Theo dõi</button>
       <button type="button" class="btn" id="joinCard" title="Tự thêm/bỏ mình khỏi thẻ">➕ Tham gia</button>
@@ -643,6 +649,7 @@ function showLogin() {
   $('whoami').textContent = '';
   $('boardTitle').textContent = '';
   delete document.body.dataset.bg;
+  document.body.style.backgroundImage = '';
 }
 
 async function showApp() {
@@ -673,6 +680,7 @@ async function showBoards() {
   $('boardsView').classList.remove('hidden');
   $('boardTitle').textContent = '';
   delete document.body.dataset.bg;
+  document.body.style.backgroundImage = '';
   await loadBoards();
 }
 
@@ -680,6 +688,11 @@ function boardTile(b) {
   const tile = document.createElement('button');
   tile.className = 'board-tile';
   tile.dataset.bg = BG_KEYS.includes(b.background) ? b.background : 'blue';
+  if (b.background?.startsWith('url:')) {
+    tile.style.backgroundImage = `linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.25)), url("${b.background.slice(4)}")`;
+    tile.style.backgroundSize = 'cover';
+    tile.style.backgroundPosition = 'center';
+  }
   const name = document.createElement('span');
   name.textContent = b.title;
   const n = document.createElement('span');
@@ -770,7 +783,15 @@ async function loadBoard(id, isRefresh = false) {
   const b = boardData.board;
   $('boardTitle').textContent = '› ' + b.title;
   $('starBtn').textContent = allBoards.find(x => x.id === id)?.starred ? '⭐' : '☆';
-  document.body.dataset.bg = BG_KEYS.includes(b.background) ? b.background : 'blue';
+  if (b.background?.startsWith('url:')) {
+    document.body.dataset.bg = 'blue';
+    document.body.style.backgroundImage = `url("${b.background.slice(4)}")`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+  } else {
+    document.body.style.backgroundImage = '';
+    document.body.dataset.bg = BG_KEYS.includes(b.background) ? b.background : 'blue';
+  }
   if (drag.active) { drag.pendingRefresh = true; return; }
   render();
   if (pendingOpenCardId) {
@@ -911,6 +932,8 @@ function renderList(list) {
   cardsEl.dataset.listId = list.id;
   for (const c of cards) cardsEl.appendChild(renderCard(c));
 
+  const addRow = document.createElement('div');
+  addRow.style.cssText = 'display:flex;align-items:center';
   const addBtn = document.createElement('button');
   addBtn.className = 'add';
   addBtn.textContent = '+ Thêm thẻ';
@@ -918,8 +941,42 @@ function renderList(list) {
     const title = prompt('Nội dung công việc?');
     if (title && title.trim()) await api('/cards', { method: 'POST', body: { list_id: list.id, title: title.trim() } });
   };
+  addRow.appendChild(addBtn);
+  const templates = boardData.cards.filter(x => x.is_template);
+  if (templates.length) {
+    const tplBtn = document.createElement('button');
+    tplBtn.className = 'del';
+    tplBtn.textContent = '⧉';
+    tplBtn.title = 'Thêm thẻ từ mẫu';
+    tplBtn.onclick = e => {
+      e.stopPropagation();
+      closeMiniMenu();
+      const m = document.createElement('div');
+      m.className = 'minimenu';
+      const r = tplBtn.getBoundingClientRect();
+      m.style.top = Math.max(10, r.top - templates.length * 36 - 40) + 'px';
+      m.style.left = Math.min(r.left, innerWidth - 240) + 'px';
+      const h = document.createElement('h5');
+      h.textContent = 'Tạo thẻ từ mẫu';
+      m.appendChild(h);
+      for (const t of templates) {
+        const b = document.createElement('button');
+        b.className = 'mi';
+        b.textContent = '📋 ' + t.title;
+        b.onclick = async ev => {
+          ev.stopPropagation();
+          closeMiniMenu();
+          const { id } = await api(`/cards/${t.id}/copy`, { method: 'POST', body: { list_id: list.id } });
+          await api('/cards/' + id, { method: 'PATCH', body: { is_template: false } });
+        };
+        m.appendChild(b);
+      }
+      document.body.appendChild(m);
+    };
+    addRow.appendChild(tplBtn);
+  }
 
-  el.append(header, cardsEl, addBtn);
+  el.append(header, cardsEl, addRow);
   return el;
 }
 
@@ -1059,16 +1116,25 @@ function renderCard(c) {
 
   const qe = document.createElement('button');
   qe.className = 'qe';
-  qe.textContent = '✎';
-  qe.title = 'Sửa nhanh tiêu đề';
   qe.addEventListener('pointerdown', e => e.stopPropagation());
-  qe.onclick = e => {
-    e.stopPropagation();
-    const v = prompt('Tiêu đề thẻ:', c.title);
-    if (v !== null && v.trim() && v.trim() !== c.title) {
-      api('/cards/' + c.id, { method: 'PATCH', body: { title: v.trim() } });
-    }
-  };
+  if (c.mirror_of) {
+    qe.textContent = '✕';
+    qe.title = 'Gỡ thẻ đối xứng khỏi board này (thẻ gốc không bị ảnh hưởng)';
+    qe.onclick = e => {
+      e.stopPropagation();
+      if (confirm('Gỡ thẻ đối xứng này? Thẻ gốc giữ nguyên.')) api('/cards/' + c.id, { method: 'DELETE' });
+    };
+  } else {
+    qe.textContent = '✎';
+    qe.title = 'Sửa nhanh tiêu đề';
+    qe.onclick = e => {
+      e.stopPropagation();
+      const v = prompt('Tiêu đề thẻ:', c.title);
+      if (v !== null && v.trim() && v.trim() !== c.title) {
+        api('/cards/' + c.id, { method: 'PATCH', body: { title: v.trim() } });
+      }
+    };
+  }
   el.appendChild(qe);
 
   const meta = document.createElement('div');
@@ -1112,6 +1178,22 @@ function renderCard(c) {
     d.title = 'Có mô tả';
     meta.appendChild(d);
   }
+  if (c.is_template) {
+    const t2 = document.createElement('span');
+    t2.className = 'badge';
+    t2.style.cssText = 'background:var(--accent);color:#fff';
+    t2.textContent = '📋 MẪU';
+    meta.appendChild(t2);
+  }
+  for (const v of (boardData.fieldValues || []).filter(x => x.card_id === c.id && x.value)) {
+    const f = (boardData.fields || []).find(x => x.id === v.field_id);
+    if (!f) continue;
+    const chip = document.createElement('span');
+    chip.className = 'badge';
+    chip.style.cssText = 'background:var(--list-bg);color:var(--text)';
+    chip.textContent = `${f.name}: ${f.type === 'date' ? v.value.split('-').reverse().slice(0, 2).join('/') : v.value}`;
+    meta.appendChild(chip);
+  }
   const members = membersOf(c.id);
   if (members.length) {
     const av = document.createElement('span');
@@ -1132,9 +1214,15 @@ function renderCard(c) {
   }
   el.appendChild(inner);
 
+  if (c.mirror_of) {
+    el.style.borderLeft = '3px solid var(--accent)';
+    el.title = 'Thẻ đối xứng — bấm để mở thẻ gốc' + (c.src_archived ? ' (gốc đã lưu trữ)' : '');
+    if (c.src_archived) el.style.opacity = .6;
+  }
   el.addEventListener('pointerdown', e => startCardDrag(e, c, el));
   el.addEventListener('click', () => {
     if (drag.suppressClick) { drag.suppressClick = false; return; }
+    if (c.mirror_of) { location.hash = '#c/' + c.mirror_of; applyHash(); return; }
     openCardDialog(c);
   });
   return el;
@@ -1623,6 +1711,7 @@ function showPlanner() {
   for (const id of ['filterBtn', 'menuBtn', 'starBtn', 'viewBoardBtn', 'viewCalBtn', 'viewTableBtn']) $(id).classList.add('hidden');
   $('boardTitle').textContent = '› Planner của tôi';
   delete document.body.dataset.bg;
+  document.body.style.backgroundImage = '';
   $('plannerView').classList.remove('hidden');
   renderPlanner();
 }
@@ -1847,6 +1936,8 @@ async function openBoardMenu(view) {
     const allCollapsed = boardData.lists.length && boardData.lists.every(l => collapsedSet().has(l.id));
     const items = [
       ['🎨 Đổi phông nền', () => openBoardMenu('background')],
+      ['👥 Hiển thị & thành viên board', () => openBoardMenu('visibility')],
+      ['🧩 Trường tùy chỉnh', () => openBoardMenu('fields')],
       ['⚡ Automation (khi thẻ vào cột…)', () => openBoardMenu('rules')],
       ['🔌 Tiện ích (Power-ups)', () => openBoardMenu('powerups')],
       [boardData.watchingBoard ? '👁 Đang theo dõi board (bấm để bỏ)' : '👁 Theo dõi board', async () => {
@@ -1896,6 +1987,28 @@ async function openBoardMenu(view) {
   }
   if (view === 'background') {
     const p = panelFrame('Phông nền', 'main');
+    const up = document.createElement('button');
+    up.className = 'btn btn-primary';
+    up.style.marginBottom = '10px';
+    up.textContent = '📤 Tải ảnh nền lên (≤10MB)';
+    const fileIn = document.createElement('input');
+    fileIn.type = 'file';
+    fileIn.accept = 'image/*';
+    fileIn.className = 'hidden';
+    up.onclick = () => fileIn.click();
+    fileIn.onchange = async () => {
+      const f = fileIn.files[0];
+      if (!f) return;
+      up.textContent = '⏳ Đang tải…';
+      const res = await fetch(`/api/boards/${currentBoardId}/background?name=${encodeURIComponent(f.name)}`, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/octet-stream' }, body: f,
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || 'Tải lên thất bại'); up.textContent = '📤 Tải ảnh nền lên (≤10MB)'; return; }
+      await loadBoard(currentBoardId, true);
+      openBoardMenu('background');
+    };
+    p.append(up, fileIn);
     const grid = document.createElement('div');
     grid.className = 'bg-grid';
     for (const key of BG_KEYS) {
@@ -1995,6 +2108,102 @@ async function openBoardMenu(view) {
     p.appendChild(addBtn);
 
     renderExtraAutomations(p);
+  }
+  if (view === 'visibility') {
+    const p = panelFrame('Hiển thị & thành viên', 'main');
+    const isPrivate = boardData.board.visibility === 'private';
+    const intro = document.createElement('p');
+    intro.style.cssText = 'font-size:13px;color:var(--muted)';
+    intro.textContent = isPrivate
+      ? 'Board riêng tư: chỉ thành viên bên dưới (và quản trị viên) thấy và mở được.'
+      : 'Board chung: mọi người trong công ty đều thấy.';
+    p.appendChild(intro);
+    const tog = document.createElement('button');
+    tog.className = 'btn ' + (isPrivate ? '' : 'btn-primary');
+    tog.textContent = isPrivate ? '🔓 Chuyển thành board chung' : '🔒 Chuyển thành board riêng tư';
+    tog.onclick = async () => {
+      await api('/boards/' + currentBoardId, { method: 'PATCH', body: { visibility: isPrivate ? 'workspace' : 'private' } });
+      await loadBoard(currentBoardId, true);
+      openBoardMenu('visibility');
+    };
+    p.appendChild(tog);
+    if (isPrivate) {
+      const h = document.createElement('h4');
+      h.style.cssText = 'margin:14px 0 6px;font-size:13px';
+      h.textContent = 'Thành viên board';
+      p.appendChild(h);
+      const row = document.createElement('div');
+      row.className = 'chip-row';
+      const current = boardData.boardMembers || [];
+      for (const u of users.filter(u => !u.disabled)) {
+        const chip = document.createElement('button');
+        chip.className = 'chip' + (current.includes(u.id) ? ' on' : '');
+        chip.textContent = u.name;
+        chip.dataset.uid = u.id;
+        chip.onclick = () => chip.classList.toggle('on');
+        row.appendChild(chip);
+      }
+      p.appendChild(row);
+      const save = document.createElement('button');
+      save.className = 'btn btn-primary';
+      save.style.marginTop = '10px';
+      save.textContent = 'Lưu thành viên';
+      save.onclick = async () => {
+        const ids = [...row.querySelectorAll('.chip.on')].map(c => Number(c.dataset.uid));
+        await api(`/boards/${currentBoardId}/members`, { method: 'PUT', body: { user_ids: ids } });
+        await loadBoard(currentBoardId, true);
+        openBoardMenu('visibility');
+        toast('Đã lưu thành viên board');
+      };
+      p.appendChild(save);
+    }
+  }
+  if (view === 'fields') {
+    const p = panelFrame('Trường tùy chỉnh', 'main');
+    const intro = document.createElement('p');
+    intro.style.cssText = 'font-size:13px;color:var(--muted)';
+    intro.textContent = 'Trường thêm vào mọi thẻ của board (như Custom Fields của Trello). Giá trị hiện ngay trên mặt thẻ.';
+    p.appendChild(intro);
+    for (const f of boardData.fields || []) {
+      const row = document.createElement('div');
+      row.className = 'rule-item';
+      const span = document.createElement('span');
+      const typeName = { text: 'chữ', number: 'số', date: 'ngày', select: 'chọn' }[f.type] || f.type;
+      span.textContent = `${f.name} (${typeName}${f.type === 'select' ? ': ' + JSON.parse(f.options || '[]').join('/') : ''})`;
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.onclick = async () => {
+        if (!confirm(`Xóa trường "${f.name}"? Giá trị trên mọi thẻ sẽ mất.`)) return;
+        await api('/fields/' + f.id, { method: 'DELETE' });
+        await loadBoard(currentBoardId, true);
+        openBoardMenu('fields');
+      };
+      row.append(span, del);
+      p.appendChild(row);
+    }
+    const form = document.createElement('div');
+    form.innerHTML = `
+      <input type="text" id="cfName" placeholder="Tên trường (vd: Link video, Số view mục tiêu)" style="margin-bottom:6px">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select class="field" id="cfType" style="width:auto">
+          <option value="text">Chữ</option><option value="number">Số</option>
+          <option value="date">Ngày</option><option value="select">Danh sách chọn</option></select>
+        <input type="text" id="cfOpts" class="hidden" placeholder="Lựa chọn, cách nhau dấu phẩy" style="flex:1">
+        <button class="btn btn-primary" id="cfAdd" style="padding:6px 10px">+</button>
+      </div>`;
+    p.appendChild(form);
+    form.querySelector('#cfType').onchange = () =>
+      form.querySelector('#cfOpts').classList.toggle('hidden', form.querySelector('#cfType').value !== 'select');
+    form.querySelector('#cfAdd').onclick = async () => {
+      const name = form.querySelector('#cfName').value.trim();
+      if (!name) { toast('Đặt tên trường trước'); return; }
+      const type = form.querySelector('#cfType').value;
+      const options = form.querySelector('#cfOpts').value.split(',').map(s => s.trim()).filter(Boolean);
+      await api(`/boards/${currentBoardId}/fields`, { method: 'POST', body: { name, type, options } });
+      await loadBoard(currentBoardId, true);
+      openBoardMenu('fields');
+    };
   }
   if (view === 'powerups') {
     const p = panelFrame('Tiện ích (Power-ups)', 'main');
@@ -2338,6 +2547,8 @@ function openCardDialog(c) {
   $('aiOut').textContent = '';
   $('watchCard').textContent = boardData.myWatches?.includes(c.id) ? '👁 Đang theo dõi' : '👁 Theo dõi';
   $('joinCard').textContent = membersOf(c.id).some(m => m.user_id === me.id) ? '➖ Rời thẻ' : '➕ Tham gia';
+  $('templateCard').textContent = c.is_template ? '📋 Bỏ mẫu' : '📋 Mẫu';
+  $('mirrorCard').classList.toggle('hidden', !!c.mirror_of);
 
   // Nút thẻ tùy chỉnh (Automation → Nút thẻ)
   const fcb = $('fCardButtons');
@@ -2403,6 +2614,41 @@ function openCardDialog(c) {
     chip.dataset.userId = u.id;
     chip.onclick = () => chip.classList.toggle('on');
     mEl.appendChild(chip);
+  }
+
+  // Trường tùy chỉnh
+  const fw = $('fFieldsWrap');
+  const ff = $('fFields');
+  ff.innerHTML = '';
+  fw.classList.toggle('hidden', !(boardData.fields || []).length);
+  for (const f of boardData.fields || []) {
+    const cur = (boardData.fieldValues || []).find(v => v.card_id === c.id && v.field_id === f.id)?.value || '';
+    const wrap = document.createElement('div');
+    const lb = document.createElement('div');
+    lb.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:2px';
+    lb.textContent = f.name;
+    let input;
+    if (f.type === 'select') {
+      input = document.createElement('select');
+      input.className = 'field';
+      input.innerHTML = '<option value="">—</option>';
+      let opts = [];
+      try { opts = JSON.parse(f.options); } catch {}
+      for (const o of opts) {
+        const op = document.createElement('option');
+        op.value = o; op.textContent = o;
+        input.appendChild(op);
+      }
+    } else {
+      input = document.createElement('input');
+      input.type = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text';
+    }
+    input.value = cur;
+    input.dataset.fieldId = f.id;
+    input.dataset.orig = cur;
+    input.className = (input.className || '') + ' cf-input';
+    wrap.append(lb, input);
+    ff.appendChild(wrap);
   }
 
   // Nhãn của board
@@ -2587,6 +2833,11 @@ $('cardForm').addEventListener('submit', async () => {
     due_complete: $('fDueDone').checked,
     cover: coverBtn?.dataset.color || '',
   }});
+  for (const inp of document.querySelectorAll('#fFields .cf-input')) {
+    if (inp.value !== inp.dataset.orig) {
+      await api(`/cards/${editingCard.id}/field/${inp.dataset.fieldId}`, { method: 'PUT', body: { value: inp.value } });
+    }
+  }
   const labelIds = [...document.querySelectorAll('#fLabels .swatch.on')].map(b => Number(b.dataset.labelId));
   await api(`/cards/${editingCard.id}/labels`, { method: 'PUT', body: { label_ids: labelIds } });
   const memberIds = [...document.querySelectorAll('#fMembers .chip.on')].map(b => Number(b.dataset.userId));
@@ -2654,6 +2905,64 @@ $('mergeCard').onclick = () => {
     applyHash();
   };
   m.append(sel, ok);
+  document.body.appendChild(m);
+};
+
+$('templateCard').onclick = async () => {
+  if (!editingCard) return;
+  const next = !editingCard.is_template;
+  await api('/cards/' + editingCard.id, { method: 'PATCH', body: { is_template: next } });
+  editingCard.is_template = next;
+  $('templateCard').textContent = next ? '📋 Bỏ mẫu' : '📋 Mẫu';
+  toast(next ? 'Đã đặt làm mẫu — dùng qua nút ⧉ ở đáy cột' : 'Đã bỏ đánh dấu mẫu');
+};
+
+$('mirrorCard').onclick = async () => {
+  if (!editingCard) return;
+  closeMiniMenu();
+  const m = document.createElement('div');
+  m.className = 'minimenu';
+  m.style.top = '22vh';
+  m.style.left = 'calc(50% - 115px)';
+  const h = document.createElement('h5');
+  h.textContent = 'Đối xứng sang board / cột nào?';
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:12px;color:var(--muted);padding:0 4px 6px';
+  hint.textContent = 'Thẻ phản chiếu luôn hiển thị tiêu đề, hạn, trạng thái của thẻ gốc; bấm vào là mở thẻ gốc.';
+  const bSel = document.createElement('select');
+  bSel.className = 'field';
+  bSel.innerHTML = '<option value="">— chọn board —</option>';
+  for (const b of allBoards.filter(b => !b.closed)) {
+    const o = document.createElement('option');
+    o.value = b.id; o.textContent = b.title;
+    bSel.appendChild(o);
+  }
+  const lSel = document.createElement('select');
+  lSel.className = 'field hidden';
+  lSel.style.marginTop = '6px';
+  bSel.onchange = async () => {
+    lSel.innerHTML = '';
+    if (!bSel.value) { lSel.classList.add('hidden'); return; }
+    const data = await api('/boards/' + bSel.value);
+    for (const l of data.lists) {
+      const o = document.createElement('option');
+      o.value = l.id; o.textContent = l.title;
+      lSel.appendChild(o);
+    }
+    lSel.classList.remove('hidden');
+  };
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-primary';
+  ok.style.marginTop = '8px';
+  ok.textContent = 'Tạo thẻ đối xứng';
+  ok.onclick = async e => {
+    e.stopPropagation();
+    if (!lSel.value) { toast('Chọn board và cột trước'); return; }
+    await api(`/cards/${editingCard.id}/mirror`, { method: 'POST', body: { list_id: Number(lSel.value) } });
+    closeMiniMenu();
+    toast('Đã tạo thẻ đối xứng');
+  };
+  m.append(h, hint, bSel, lSel, ok);
   document.body.appendChild(m);
 };
 

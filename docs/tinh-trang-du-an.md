@@ -116,6 +116,15 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
    **thu gọn/mở rộng tất cả cột**, **sao chép board**, **tham gia/rời thẻ 1 chạm**,
    **xuất CSV** (BOM, mở Excel). REA PASS.
 
+8. **Đợt 6 — 17/10/2026** (đóng gần hết audit 2d): **Trường tùy chỉnh** (chữ/số/ngày/danh sách
+   chọn — quản lý trong Menu board, điền trong thẻ, giá trị hiện thành chip trên mặt thẻ);
+   **Mẫu thẻ 📋** (đặt trong thẻ, dùng qua nút ⧉ đáy cột); **Thẻ đối xứng 🪞** (mirror sang board
+   khác, tự đồng bộ tiêu đề/hạn/trạng thái từ gốc, bấm mở thẻ gốc, gỡ bằng ✕);
+   **Board riêng tư 🔒** (Menu → Hiển thị & thành viên: chỉ thành viên board + admin thấy/mở,
+   chặn cả tìm kiếm và link); **Nền ảnh** (upload ≤10MB trong Menu → Phông nền).
+   Chủ động bỏ: email-tới-bảng (cần hạ tầng mail), nhãn dán/sticker (ít giá trị công việc),
+   Jira/Power-ups bên thứ ba/nối lịch ngoài (hệ sinh thái Atlassian). REA PASS.
+
 ## Ghi chú cho phiên Claude kế tiếp
 
 - Chạy local: `cd app && npm install && npm start` → localhost:3000 (admin/admin123

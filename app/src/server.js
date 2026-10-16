@@ -356,14 +356,25 @@ app.post('/api/notifications/read', auth, (req, res) => {
 
 /* ---------- Boards ---------- */
 
+// Board riêng tư: chỉ thành viên board (hoặc admin) thấy và mở được
+function canSeeBoard(user, boardId) {
+  const b = db.prepare('SELECT visibility FROM boards WHERE id = ?').get(boardId);
+  if (!b) return false;
+  if (b.visibility !== 'private' || user.is_admin) return true;
+  return !!db.prepare('SELECT 1 FROM board_members WHERE board_id = ? AND user_id = ?').get(boardId, user.id);
+}
+
 app.get('/api/boards', auth, (req, res) => {
   const boards = db.prepare(`
     SELECT b.*,
       (SELECT COUNT(*) FROM lists l JOIN cards c ON c.list_id = l.id
         WHERE l.board_id = b.id AND c.archived = 0 AND l.archived = 0) AS card_count,
       EXISTS(SELECT 1 FROM board_stars s WHERE s.board_id = b.id AND s.user_id = ?) AS starred
-    FROM boards b ORDER BY b.position, b.id
-  `).all(req.user.id);
+    FROM boards b
+    WHERE b.visibility != 'private' OR ? = 1
+      OR EXISTS(SELECT 1 FROM board_members m WHERE m.board_id = b.id AND m.user_id = ?)
+    ORDER BY b.position, b.id
+  `).all(req.user.id, req.user.is_admin ? 1 : 0, req.user.id);
   res.json({ boards });
 });
 
@@ -392,6 +403,13 @@ app.patch('/api/boards/:id', auth, (req, res) => {
   if (powerups !== undefined && typeof powerups === 'object') {
     db.prepare('UPDATE boards SET powerups = ? WHERE id = ?').run(JSON.stringify(powerups), id);
   }
+  if (req.body?.visibility !== undefined && ['workspace', 'private'].includes(req.body.visibility)) {
+    db.prepare('UPDATE boards SET visibility = ? WHERE id = ?').run(req.body.visibility, id);
+    // Người đặt riêng tư tự thành thành viên để không tự khóa mình
+    if (req.body.visibility === 'private') {
+      db.prepare('INSERT OR IGNORE INTO board_members (board_id, user_id) VALUES (?, ?)').run(id, req.user.id);
+    }
+  }
   if (closed !== undefined) {
     db.prepare('UPDATE boards SET closed = ? WHERE id = ?').run(closed ? 1 : 0, id);
     logActivity(id, null, req.user.id, closed ? 'board_closed' : 'board_reopened', {});
@@ -408,6 +426,83 @@ app.post('/api/boards/:id/star', auth, (req, res) => {
   else db.prepare('INSERT INTO board_stars (user_id, board_id) VALUES (?, ?)').run(req.user.id, id);
   res.json({ starred: !has });
 });
+
+// Thành viên board (cho board riêng tư)
+app.put('/api/boards/:id/members', auth, (req, res) => {
+  const boardId = Number(req.params.id);
+  const ids = (req.body?.user_ids || []).map(Number);
+  db.prepare('DELETE FROM board_members WHERE board_id = ?').run(boardId);
+  const ins = db.prepare('INSERT OR IGNORE INTO board_members (board_id, user_id) VALUES (?, ?)');
+  for (const id of ids) ins.run(boardId, id);
+  ins.run(boardId, req.user.id); // không tự khóa mình
+  notifyBoard(boardId);
+  res.json({ ok: true });
+});
+
+/* ---------- Trường tùy chỉnh (Custom Fields) ---------- */
+
+app.post('/api/boards/:id/fields', auth, (req, res) => {
+  const { name, type, options } = req.body || {};
+  if (!String(name || '').trim()) return res.status(400).json({ error: 'Thiếu tên trường' });
+  const t = ['text', 'number', 'date', 'select'].includes(type) ? type : 'text';
+  const info = db.prepare('INSERT INTO board_fields (board_id, name, type, options, position) VALUES (?, ?, ?, ?, ?)')
+    .run(Number(req.params.id), String(name).trim().slice(0, 30), t,
+      JSON.stringify(Array.isArray(options) ? options.slice(0, 20) : []),
+      nextPosition('board_fields', 'WHERE board_id = ?', [Number(req.params.id)]));
+  notifyBoard(Number(req.params.id));
+  res.json({ id: info.lastInsertRowid });
+});
+
+app.delete('/api/fields/:id', auth, (req, res) => {
+  const row = db.prepare('SELECT board_id FROM board_fields WHERE id = ?').get(req.params.id);
+  db.prepare('DELETE FROM board_fields WHERE id = ?').run(req.params.id);
+  if (row) notifyBoard(row.board_id);
+  res.json({ ok: true });
+});
+
+app.put('/api/cards/:id/field/:fieldId', auth, (req, res) => {
+  const cardId = Number(req.params.id);
+  const fieldId = Number(req.params.fieldId);
+  const value = String(req.body?.value ?? '').slice(0, 300);
+  if (value === '') db.prepare('DELETE FROM card_field_values WHERE card_id = ? AND field_id = ?').run(cardId, fieldId);
+  else db.prepare(`INSERT INTO card_field_values (card_id, field_id, value) VALUES (?, ?, ?)
+    ON CONFLICT(card_id, field_id) DO UPDATE SET value = excluded.value`).run(cardId, fieldId, value);
+  notifyBoard(boardIdOfCard(cardId));
+  res.json({ ok: true });
+});
+
+/* ---------- Thẻ đối xứng (mirror) ---------- */
+
+app.post('/api/cards/:id/mirror', auth, (req, res) => {
+  const srcId = Number(req.params.id);
+  const listId = Number(req.body?.list_id);
+  const src = db.prepare('SELECT * FROM cards WHERE id = ?').get(srcId);
+  if (!src || !boardIdOfList(listId)) return res.status(400).json({ error: 'Thẻ nguồn hoặc cột đích không hợp lệ' });
+  if (src.mirror_of) return res.status(400).json({ error: 'Không đối xứng một thẻ đối xứng' });
+  const info = db.prepare('INSERT INTO cards (list_id, title, position, mirror_of) VALUES (?, ?, ?, ?)')
+    .run(listId, '🪞 ' + src.title, nextPosition('cards', 'WHERE list_id = ?', [listId]), srcId);
+  const boardId = boardIdOfList(listId);
+  logActivity(boardId, info.lastInsertRowid, req.user.id, 'card_created', { title: '🪞 ' + src.title });
+  notifyBoard(boardId);
+  res.json({ id: info.lastInsertRowid });
+});
+
+// Nền ảnh cho board: upload rồi đặt background = 'url:/u/…'
+app.post('/api/boards/:id/background', auth,
+  express.raw({ type: () => true, limit: '10mb' }),
+  (req, res) => {
+    const boardId = Number(req.params.id);
+    if (!db.prepare('SELECT 1 FROM boards WHERE id = ?').get(boardId)) return res.status(404).json({ error: 'Board không tồn tại' });
+    if (!req.body?.length) return res.status(400).json({ error: 'File trống' });
+    const ext = (String(req.query.name || '').split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!IMAGE_EXTS.includes(ext)) return res.status(400).json({ error: 'Chỉ nhận ảnh png/jpg/gif/webp' });
+    const fileName = crypto.randomBytes(12).toString('hex') + '.' + ext;
+    fs.writeFileSync(path.join(UPLOAD_DIR, fileName), req.body);
+    db.prepare('UPDATE boards SET background = ? WHERE id = ?').run('url:/u/' + fileName, boardId);
+    notifyBoard(boardId);
+    broadcast(null, { type: 'boards-changed' });
+    res.json({ ok: true, url: '/u/' + fileName });
+  });
 
 // Sao chép board: cột (màu/WIP), nhãn, thẻ (mô tả/hạn/nhãn/checklist chưa tick), rule vào cột
 app.post('/api/boards/:id/copy', auth, (req, res) => {
@@ -495,6 +590,7 @@ app.delete('/api/boards/:id', auth, adminOnly, (req, res) => {
 app.get('/api/boards/:id', auth, (req, res) => {
   const board = db.prepare('SELECT * FROM boards WHERE id = ?').get(req.params.id);
   if (!board) return res.status(404).json({ error: 'Board không tồn tại' });
+  if (!canSeeBoard(req.user, board.id)) return res.status(403).json({ error: 'Board này riêng tư — bạn chưa được thêm vào' });
   ensureBoardLabels(board.id);
   const lists = db.prepare('SELECT * FROM lists WHERE board_id = ? AND archived = 0 ORDER BY position, id').all(board.id);
   const cards = db.prepare(`
@@ -547,7 +643,27 @@ app.get('/api/boards/:id', auth, (req, res) => {
   const schedules = db.prepare('SELECT * FROM auto_schedules WHERE board_id = ?').all(board.id);
   const dueRules = db.prepare('SELECT * FROM due_rules WHERE board_id = ?').all(board.id);
   const cardButtons = db.prepare('SELECT * FROM card_buttons WHERE board_id = ? ORDER BY position, id').all(board.id);
-  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches, watchingBoard, schedules, dueRules, cardButtons });
+  const boardMembers = db.prepare('SELECT user_id FROM board_members WHERE board_id = ?').all(board.id).map(r => r.user_id);
+  const fields = db.prepare('SELECT * FROM board_fields WHERE board_id = ? ORDER BY position, id').all(board.id);
+  const fieldValues = db.prepare(`
+    SELECT v.card_id, v.field_id, v.value FROM card_field_values v
+    JOIN cards c ON c.id = v.card_id JOIN lists l ON l.id = c.list_id WHERE l.board_id = ?
+  `).all(board.id);
+  // Thẻ đối xứng (mirror): phủ dữ liệu sống từ thẻ gốc
+  for (const c of cards) {
+    if (!c.mirror_of) continue;
+    const src = db.prepare(`
+      SELECT c.*, l.board_id AS src_board FROM cards c JOIN lists l ON l.id = c.list_id WHERE c.id = ?
+    `).get(c.mirror_of);
+    if (src) {
+      c.title = src.title;
+      c.due_date = src.due_date; c.due_time = src.due_time; c.due_complete = src.due_complete;
+      c.recur = src.recur; c.cover = src.cover.startsWith('url:') ? '' : src.cover;
+      c.description = src.description;
+      c.src_archived = src.archived;
+    } else c.title = '(thẻ gốc đã bị xóa)';
+  }
+  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches, watchingBoard, schedules, dueRules, cardButtons, boardMembers, fields, fieldValues });
 });
 
 app.get('/api/boards/:id/archived', auth, (req, res) => {
@@ -749,6 +865,7 @@ app.patch('/api/cards/:id', auth, (req, res) => {
   if (b.due_complete !== undefined) { sets.push('due_complete = ?'); vals.push(b.due_complete ? 1 : 0); }
   if (b.cover !== undefined) { sets.push('cover = ?'); vals.push(String(b.cover)); }
   if (b.archived !== undefined) { sets.push('archived = ?'); vals.push(b.archived ? 1 : 0); }
+  if (b.is_template !== undefined) { sets.push('is_template = ?'); vals.push(b.is_template ? 1 : 0); }
   if (b.list_id !== undefined) { sets.push('list_id = ?'); vals.push(Number(b.list_id)); }
   if (b.position !== undefined) { sets.push('position = ?'); vals.push(Number(b.position)); }
   if (sets.length) {
@@ -790,6 +907,10 @@ app.patch('/api/cards/:id', auth, (req, res) => {
     }
   }
   notifyBoard(boardId);
+  // Board chứa thẻ đối xứng của thẻ này cũng cần vẽ lại
+  for (const r of db.prepare(`
+    SELECT DISTINCT l.board_id FROM cards m JOIN lists l ON l.id = m.list_id WHERE m.mirror_of = ?
+  `).all(id)) notifyBoard(r.board_id);
   res.json({ ok: true });
 });
 
@@ -1068,8 +1189,10 @@ app.get('/api/search', auth, (req, res) => {
     SELECT c.id, c.title, c.due_date, l.title AS list_title, b.title AS board_title, b.id AS board_id
     FROM cards c JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
     WHERE c.archived = 0 AND (c.title LIKE ? OR c.description LIKE ?)
+      AND (b.visibility != 'private' OR ? = 1
+        OR EXISTS(SELECT 1 FROM board_members m WHERE m.board_id = b.id AND m.user_id = ?))
     ORDER BY c.id DESC LIMIT 30
-  `).all(like, like);
+  `).all(like, like, req.user.is_admin ? 1 : 0, req.user.id);
   res.json({ cards });
 });
 
@@ -1080,6 +1203,7 @@ app.get('/api/cards/:id/locate', auth, (req, res) => {
     SELECT c.id, c.archived, l.board_id FROM cards c JOIN lists l ON l.id = c.list_id WHERE c.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Thẻ không tồn tại' });
+  if (!canSeeBoard(req.user, row.board_id)) return res.status(403).json({ error: 'Board này riêng tư' });
   res.json({ board_id: row.board_id, archived: !!row.archived });
 });
 
