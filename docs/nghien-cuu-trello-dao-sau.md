@@ -98,6 +98,49 @@ icon màu theo mức); nhãn (+ "Không có nhãn").
 | Bộ lọc thêm: không thành viên / thẻ của tôi / không nhãn / card status | nhẹ |
 | Theo dõi (watch) cột/thẻ | gắn với hệ thông báo đã có |
 
+## 2c. Số liệu REA đo trên Trello THẬT (bản mới, đăng nhập, 17/10/2026)
+
+*Phương pháp: Chrome profile riêng + cổng CDP 9222, `scripts/rea-measure-trello.mjs` nhấc thẻ
+"Reg Mail Iphone" trên board Team Task, giữ giữa chừng để đo rồi thả về đúng chỗ cũ (xác nhận
+bằng ảnh after-drop — dữ liệu không đổi). Evidence REA: idle/mid-drag/after-drop + listeners.*
+
+- **Ghost nghiêng đúng 4°**: `transform: matrix(0.997564, 0.0697565, -0.0697565, 0.997564, 0, 0)`
+  (cos4°/sin4°) — **app của ta trùng khớp 100%**, không cần chỉnh animation kéo.
+- Selector thẻ bản mới: `[data-testid="trello-card"]`.
+- **Placeholder mới ≠ bản cũ**: khung **viền đứt nét** nền nhạt *cùng màu cột* (không phải khối xám đặc);
+  **cột đích sáng viền xanh** suốt lúc kéo qua. → 2 chỉnh CSS đáng làm cho app ta.
+- Phát hiện tính năng mới: kéo thẻ đè lên thẻ khác hiện tooltip **"Hợp nhất các thẻ"** (merge cards).
+- Thẻ gốc mờ đi tại chỗ trong lúc kéo (ta đang thay bằng placeholder — khác nhẹ, chấp nhận được).
+
+## 2d. Audit lần 2 sau đợt 4 (17/10/2026) — còn gì CHƯA tích hợp
+
+*Đọc lại Trello trên Chrome đăng nhập: menu "Thêm vào thẻ", picker Ngày, menu Actions thẻ,
+menu board đầy đủ. Đối chiếu với app sau đợt 2+3+4.*
+
+**Đã ngang Trello** (không tính hệ sinh thái Atlassian): board/cột/thẻ + kéo-thả chuẩn 4°,
+nhãn có tên, nhiều thành viên, hạn + badge màu, checklist, upload file + link, bình luận
+@mention, nhật ký, realtime, Lịch + **Bảng kê** (Trello thu phí), bộ lọc (ngang Free),
+thông báo 🔔 + theo dõi thẻ, Inbox, Planner tuần, automation **4 nhánh** (vào cột / theo lịch /
+theo hạn / nút thẻ — Trello Free giới hạn 250 lượt/tháng, ta không giới hạn), vote/WIP/AI
+per board, màu + thu gọn + sort + kéo cột, hoàn thành thẻ, sửa nhanh, hợp nhất thẻ, link thẻ.
+
+**Chưa tích hợp** (xếp theo giá trị cho đội, dễ trước):
+| # | Thiếu | Ghi chú |
+|---|---|---|
+| 1 | Giờ hết hạn + ngày bắt đầu | picker Ngày của Trello có start date, due time |
+| 2 | Hạn lặp định kỳ + mức nhắc tùy chọn | Trello: "Định kỳ: không bao giờ/…", nhắc "1 ngày trước…"; ta cố định nhắc 1 ngày |
+| 3 | Thu gọn tất cả cột (1 nút) + Theo dõi cả board + Sao chép bảng | menu board — đều dễ |
+| 4 | In/xuất board (CSV/print) | menu "In, xuất và chia sẻ" |
+| 5 | Email-tới-bảng / Inbox từ email-Slack | cần hạ tầng mail — cân nhắc kỹ |
+| 6 | Trường tùy chỉnh (Custom Fields) | Premium Trello |
+| 7 | Mẫu thẻ + mẫu bảng (templates) | menu Actions "Tạo mẫu" |
+| 8 | Mirror thẻ giữa board ("Đối xứng") | tính năng 2025 |
+| 9 | Tham gia (join) 1 chạm | nút nhỏ, dễ |
+| 10 | Hình nền ảnh (upload) + nhãn dán (stickers) | ta mới có 8 gradient |
+| 11 | Vị trí/bản đồ, Jira, Power-ups bên thứ 3, nối lịch ngoài, AI Atlassian | ngoài phạm vi tự host — bỏ |
+| 12 | Hợp nhất bằng kéo-đè thẻ | ta có hợp nhất qua dialog (đủ dùng) |
+| 13 | Board riêng tư (visibility) | gap cũ #9, vẫn treo |
+
 ## 3. Đề xuất đợt 2 (chờ chốt sau pilot, thứ tự ưu tiên)
 
 **Nhóm A — làm ngay được, chạm đúng nhu cầu đội:**
