@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bảng công việc công ty</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0079bf">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Công việc">
 <style>
   :root {
     --bg: #f4f5f7; --surface: #ffffff; --list-bg: #ebecf0;
@@ -1540,6 +1547,43 @@ $('filterClear').onclick = () => {
   render();
 };
 
+/* ---------- Web Push (thông báo đẩy khi không mở app) ---------- */
+let swReg = null;
+async function initSW() {
+  if (!('serviceWorker' in navigator)) return;
+  try { swReg = await navigator.serviceWorker.register('/sw.js'); } catch {}
+}
+initSW();
+
+const b64ToU8 = s => {
+  const pad = '='.repeat((4 - s.length % 4) % 4);
+  const raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+};
+
+async function pushState() {
+  if (!swReg || !('PushManager' in window)) return 'unsupported';
+  const sub = await swReg.pushManager.getSubscription();
+  return sub ? 'on' : 'off';
+}
+
+async function togglePush() {
+  if (!swReg) { toast('Trình duyệt không hỗ trợ thông báo đẩy'); return; }
+  const existing = await swReg.pushManager.getSubscription();
+  if (existing) {
+    await api('/push/unsubscribe', { method: 'POST', body: { endpoint: existing.endpoint } });
+    await existing.unsubscribe();
+    toast('Đã tắt thông báo đẩy trên thiết bị này');
+  } else {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Bạn đã chặn quyền thông báo — mở cài đặt trình duyệt để cho phép'); return; }
+    const { key } = await api('/push/key');
+    const sub = await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(key) });
+    await api('/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+    toast('✅ Thiết bị này sẽ nhận thông báo đẩy kể cả khi không mở app');
+  }
+}
+
 /* ---------- Thông báo 🔔 ---------- */
 async function refreshNotifCount() {
   try {
@@ -1581,6 +1625,16 @@ async function openNotifPop() {
   markAll.onclick = async () => { await api('/notifications/read', { method: 'POST', body: {} }); openNotifPop(); refreshNotifCount(); };
   head.appendChild(markAll);
   pop.appendChild(head);
+  const st = await pushState();
+  if (st !== 'unsupported') {
+    const pushRow = document.createElement('button');
+    pushRow.className = 'notif-item';
+    pushRow.textContent = st === 'on' ? '📱 Thông báo đẩy: ĐANG BẬT trên thiết bị này — bấm để tắt'
+                                      : '📱 Bật thông báo đẩy trên thiết bị này (báo cả khi không mở app)';
+    pushRow.style.color = 'var(--accent)';
+    pushRow.onclick = async () => { await togglePush(); openNotifPop(); };
+    pop.appendChild(pushRow);
+  }
   if (!notifications.length) {
     const e = document.createElement('div');
     e.className = 'notif-empty';

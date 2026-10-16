@@ -23,8 +23,15 @@ function rea(args, outFile) {
 
 const browser = await chromium.connectOverCDP(CDP);
 const ctx = browser.contexts()[0];
-const page = ctx.pages().find(p => /trello\.com\/b\//.test(p.url()));
-if (!page) throw new Error('Không thấy tab board Trello (trello.com/b/…) — mở board trước đã.');
+let page = ctx.pages().find(p => /trello\.com\/b\//.test(p.url()));
+if (!page) {
+  // Chưa mở board: tự điều hướng tab Trello sẵn có (hoặc tab mới) tới board chỉ định
+  const target = process.env.TRELLO_BOARD_URL || '';
+  if (!target) throw new Error('Không thấy tab board Trello — đặt TRELLO_BOARD_URL hoặc mở board trước.');
+  page = ctx.pages().find(p => /trello\.com/.test(p.url())) || await ctx.newPage();
+  await page.goto(target, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
+}
 console.log('[pw] board:', page.url());
 
 // Tìm target id cho REA

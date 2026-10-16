@@ -307,6 +307,13 @@ CREATE TABLE IF NOT EXISTS card_field_values (
   value TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (card_id, field_id)
 );
+CREATE TABLE IF NOT EXISTS push_subs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  sub_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 export function hashPassword(password) {

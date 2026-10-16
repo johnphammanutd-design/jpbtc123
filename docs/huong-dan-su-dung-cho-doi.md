@@ -43,3 +43,15 @@
 2. Nhận việc = tự gán tên + đặt hạn. Không có thẻ = không có việc.
 3. Vướng ở đâu, bình luận ngay trên thẻ đó và nhắc tên người cần hỏi.
 4. Thứ 6 hằng tuần: cả đội nhìn cột "Đã đăng" — đó là thành quả tuần này.
+
+## Cài thành app trên điện thoại + bật thông báo đẩy (mới 17/10)
+
+**Android (Chrome):** mở https://task.kairetic.com → menu ⋮ → **"Thêm vào màn hình chính"**
+(hoặc "Cài đặt ứng dụng"). Icon 📋 xuất hiện như app bình thường.
+
+**iPhone (Safari):** mở https://task.kairetic.com → nút **Chia sẻ** (ô vuông mũi tên) →
+**"Thêm vào MH chính"**. Lưu ý: trên iPhone phải mở app từ icon này thì mới bật được thông báo đẩy.
+
+**Bật thông báo đẩy** (báo khi được gán việc, bị nhắc tên, sắp/trễ hạn — kể cả khi không mở app):
+mở app → bấm chuông 🔔 → dòng **"📱 Bật thông báo đẩy trên thiết bị này"** → Cho phép.
+Mỗi thiết bị bật một lần. Muốn tắt: bấm lại đúng dòng đó.

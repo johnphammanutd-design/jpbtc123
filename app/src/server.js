@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
+import webpush from 'web-push';
 import { db, hashPassword, verifyPassword, ensureBoardLabels } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -188,16 +189,80 @@ function notifyBoard(boardId) {
   if (boardId) broadcast(boardId, { type: 'board-changed', boardId });
 }
 
+/* ---------- Web Push (thông báo đẩy tới điện thoại) ---------- */
+
+// VAPID key tự sinh lần đầu, lưu trong DATA_DIR để giữ qua các lần deploy
+const VAPID_FILE = path.join(process.env.DATA_DIR || path.resolve('data'), 'vapid.json');
+let vapid;
+try { vapid = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf8')); }
+catch {
+  vapid = webpush.generateVAPIDKeys();
+  fs.mkdirSync(path.dirname(VAPID_FILE), { recursive: true });
+  fs.writeFileSync(VAPID_FILE, JSON.stringify(vapid));
+}
+webpush.setVapidDetails('mailto:admin@task.kairetic.com', vapid.publicKey, vapid.privateKey);
+
+function pushTypeText(type, data) {
+  const t = data.title ? `"${String(data.title).slice(0, 60)}"` : 'thẻ';
+  switch (type) {
+    case 'assigned': return 'Bạn được gán vào ' + t;
+    case 'mention': return `Bạn được nhắc trong ${t}: ${data.text || ''}`;
+    case 'comment': return `Bình luận mới ở ${t}: ${data.text || ''}`;
+    case 'moved': return `${t} chuyển từ "${data.from}" sang "${data.to}"`;
+    case 'due_soon': return `⏰ ${t} sắp đến hạn (${data.due})`;
+    case 'due_overdue': return `🔴 ${t} đã TRỄ HẠN (${data.due})`;
+    case 'completed': return `✅ ${t} đã hoàn thành`;
+    case 'created': return `🆕 Thẻ mới ${t} trên board bạn theo dõi`;
+    default: return t;
+  }
+}
+
+function sendWebPush(userId, type, cardId, data) {
+  const subs = db.prepare('SELECT * FROM push_subs WHERE user_id = ?').all(userId);
+  if (!subs.length) return;
+  const payload = JSON.stringify({
+    title: '📋 Bảng công việc',
+    body: pushTypeText(type, data),
+    url: cardId ? '/#c/' + cardId : '/',
+    tag: cardId ? 'card-' + cardId : undefined,
+  });
+  for (const s of subs) {
+    webpush.sendNotification(JSON.parse(s.sub_json), payload).catch(err => {
+      if (err?.statusCode === 404 || err?.statusCode === 410) {
+        db.prepare('DELETE FROM push_subs WHERE id = ?').run(s.id); // thiết bị đã hủy đăng ký
+      }
+    });
+  }
+}
+
 /* ---------- Thông báo cá nhân (chuông 🔔) ---------- */
 
-// Tạo thông báo cho userId (bỏ qua khi tự mình gây ra) và đẩy realtime
+// Tạo thông báo cho userId (bỏ qua khi tự mình gây ra), đẩy realtime + Web Push
 function pushNotification(userId, actorId, type, boardId, cardId, data = {}) {
   if (!userId || userId === actorId) return;
   db.prepare(`INSERT INTO notifications (user_id, actor_id, type, board_id, card_id, data)
               VALUES (?, ?, ?, ?, ?, ?)`)
     .run(userId, actorId, type, boardId, cardId, JSON.stringify(data));
   broadcastUser(userId, { type: 'notification' });
+  try { sendWebPush(userId, type, cardId, data); } catch {}
 }
+
+app.get('/api/push/key', auth, (req, res) => res.json({ key: vapid.publicKey }));
+
+app.post('/api/push/subscribe', auth, (req, res) => {
+  const sub = req.body?.subscription;
+  if (!sub?.endpoint) return res.status(400).json({ error: 'Thiếu subscription' });
+  db.prepare(`INSERT INTO push_subs (user_id, endpoint, sub_json) VALUES (?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, sub_json = excluded.sub_json`)
+    .run(req.user.id, String(sub.endpoint), JSON.stringify(sub));
+  res.json({ ok: true });
+});
+
+app.post('/api/push/unsubscribe', auth, (req, res) => {
+  const endpoint = String(req.body?.endpoint || '');
+  db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?').run(endpoint, req.user.id);
+  res.json({ ok: true });
+});
 
 const cardMemberIds = cardId =>
   db.prepare('SELECT user_id FROM card_members WHERE card_id = ?').all(cardId).map(r => r.user_id);
