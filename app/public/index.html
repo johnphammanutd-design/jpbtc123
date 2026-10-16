@@ -435,11 +435,26 @@
     <div class="member-row" id="fMembers"></div>
     <label>Nhãn <button type="button" class="ghost" id="addLabelBtn" style="width:auto;display:inline;padding:2px 8px">+ nhãn mới</button></label>
     <div id="fLabels"></div>
-    <label>Hạn chót</label>
-    <div style="display:flex;gap:10px;align-items:center">
-      <input type="date" id="fDue" style="flex:1">
+    <label>Ngày</label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--muted)">Bắt đầu</span>
+      <input type="date" id="fStart" style="width:auto">
+      <span style="font-size:12px;color:var(--muted)">Hạn</span>
+      <input type="date" id="fDue" style="width:auto">
+      <input type="time" id="fDueTime" style="width:auto" title="Giờ hết hạn (bỏ trống nếu không cần)">
       <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text)">
         <input type="checkbox" id="fDueDone" style="width:auto"> Hoàn thành</label>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <span style="font-size:12px;color:var(--muted)">Định kỳ</span>
+      <select class="field" id="fRecur" style="width:auto" title="Hoàn thành xong tự dời hạn sang chu kỳ kế">
+        <option value="">không</option><option value="daily">hằng ngày</option>
+        <option value="weekly">hằng tuần</option><option value="monthly">hằng tháng</option></select>
+      <span style="font-size:12px;color:var(--muted)">Nhắc</span>
+      <select class="field" id="fRemind" style="width:auto" title="Gửi thông báo trước hạn">
+        <option value="none">không nhắc</option><option value="0d">đúng ngày hạn</option>
+        <option value="1d">1 ngày trước</option><option value="2d">2 ngày trước</option>
+        <option value="7d">7 ngày trước</option></select>
     </div>
     <label>Checklist</label>
     <div id="fChecklist"></div>
@@ -476,6 +491,7 @@
       <button type="button" class="btn" id="mergeCard" title="Gộp thẻ này vào thẻ khác">⇄ Hợp nhất</button>
       <button type="button" class="btn" id="linkCard" title="Chép link thẻ">🔗 Link</button>
       <button type="button" class="btn" id="watchCard" title="Nhận thông báo mọi thay đổi của thẻ">👁 Theo dõi</button>
+      <button type="button" class="btn" id="joinCard" title="Tự thêm/bỏ mình khỏi thẻ">➕ Tham gia</button>
       <button type="button" class="btn hidden" id="voteCard">👍 Vote</button>
       <button type="button" class="btn-danger" id="archiveCard">Lưu trữ</button>
     </div>
@@ -982,7 +998,9 @@ function dueBadge(c) {
   else if (c.due_date < today) cls = 'due-overdue';
   else if (c.due_date <= soon) cls = 'due-soon';
   span.className = 'badge ' + cls;
-  span.textContent = '🕐 ' + c.due_date.split('-').reverse().slice(0, 2).join('/');
+  span.textContent = '🕐 ' + c.due_date.split('-').reverse().slice(0, 2).join('/') +
+    (c.due_time ? ' ' + c.due_time : '') + (c.recur ? ' 🔁' : '');
+  if (c.start_date) span.title = 'Bắt đầu ' + c.start_date.split('-').reverse().slice(0, 2).join('/');
   return span;
 }
 
@@ -1457,6 +1475,7 @@ function notifText(n) {
     case 'due_soon': return `⏰ ${card} đến hạn ${d.due?.split('-').reverse().slice(0, 2).join('/')}`;
     case 'due_overdue': return `🔴 ${card} đã TRỄ HẠN (${d.due?.split('-').reverse().slice(0, 2).join('/')})`;
     case 'completed': return `✅ ${who} đã hoàn thành ${card}`;
+    case 'created': return `🆕 ${who} đã tạo ${card} trên board bạn theo dõi`;
     default: return n.type;
   }
 }
@@ -1825,10 +1844,38 @@ function panelFrame(title, backTo) {
 async function openBoardMenu(view) {
   if (view === 'main') {
     const p = panelFrame('Menu board');
+    const allCollapsed = boardData.lists.length && boardData.lists.every(l => collapsedSet().has(l.id));
     const items = [
       ['🎨 Đổi phông nền', () => openBoardMenu('background')],
       ['⚡ Automation (khi thẻ vào cột…)', () => openBoardMenu('rules')],
       ['🔌 Tiện ích (Power-ups)', () => openBoardMenu('powerups')],
+      [boardData.watchingBoard ? '👁 Đang theo dõi board (bấm để bỏ)' : '👁 Theo dõi board', async () => {
+        const r = await api(`/boards/${currentBoardId}/watch`, { method: 'POST' });
+        boardData.watchingBoard = r.watching;
+        toast(r.watching ? 'Sẽ báo bạn mọi hoạt động trên board này' : 'Đã bỏ theo dõi board');
+        openBoardMenu('main');
+      }],
+      [allCollapsed ? '⇥ Mở rộng tất cả cột' : '⇤ Thu gọn tất cả cột', () => {
+        const s = allCollapsed ? [] : boardData.lists.map(l => l.id);
+        try { localStorage.setItem('kanban-collapsed-' + currentBoardId, JSON.stringify(s)); } catch {}
+        renderBoard();
+        openBoardMenu('main');
+      }],
+      ['⎘ Sao chép board', async () => {
+        if (!confirm('Tạo bản sao board này (cột, thẻ, nhãn, checklist — không gồm bình luận/file)?')) return;
+        const { id } = await api(`/boards/${currentBoardId}/copy`, { method: 'POST' });
+        $('boardMenu').classList.add('hidden');
+        openBoard(id);
+      }],
+      ['⬇ Xuất CSV (mở bằng Excel)', async () => {
+        const res = await fetch(`/api/boards/${currentBoardId}/export.csv`, { headers: { Authorization: 'Bearer ' + token } });
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${boardData.board.title}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }],
       ['🗃 Mục lưu trữ', () => openBoardMenu('archive')],
       ['📜 Hoạt động của board', () => openBoardMenu('activity')],
       ['🚪 Đóng board này', async () => {
@@ -2279,6 +2326,10 @@ function openCardDialog(c) {
   $('fTitle').value = c.title;
   $('fDesc').value = c.description || '';
   $('fDue').value = c.due_date || '';
+  $('fStart').value = c.start_date || '';
+  $('fDueTime').value = c.due_time || '';
+  $('fRecur').value = c.recur || '';
+  $('fRemind').value = c.remind || '1d';
   $('fDueDone').checked = !!c.due_complete;
 
   // Đợt 2: AI, vote
@@ -2286,6 +2337,7 @@ function openCardDialog(c) {
   $('aiOut').classList.add('hidden');
   $('aiOut').textContent = '';
   $('watchCard').textContent = boardData.myWatches?.includes(c.id) ? '👁 Đang theo dõi' : '👁 Theo dõi';
+  $('joinCard').textContent = membersOf(c.id).some(m => m.user_id === me.id) ? '➖ Rời thẻ' : '➕ Tham gia';
 
   // Nút thẻ tùy chỉnh (Automation → Nút thẻ)
   const fcb = $('fCardButtons');
@@ -2528,6 +2580,10 @@ $('cardForm').addEventListener('submit', async () => {
     title: $('fTitle').value.trim() || editingCard.title,
     description: $('fDesc').value,
     due_date: $('fDue').value,
+    start_date: $('fStart').value,
+    due_time: $('fDueTime').value,
+    recur: $('fRecur').value,
+    remind: $('fRemind').value,
     due_complete: $('fDueDone').checked,
     cover: coverBtn?.dataset.color || '',
   }});
@@ -2599,6 +2655,13 @@ $('mergeCard').onclick = () => {
   };
   m.append(sel, ok);
   document.body.appendChild(m);
+};
+
+$('joinCard').onclick = async () => {
+  if (!editingCard) return;
+  const r = await api(`/cards/${editingCard.id}/join`, { method: 'POST' });
+  $('joinCard').textContent = r.joined ? '➖ Rời thẻ' : '➕ Tham gia';
+  toast(r.joined ? 'Bạn đã tham gia thẻ' : 'Bạn đã rời thẻ');
 };
 
 $('watchCard').onclick = async () => {

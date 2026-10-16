@@ -103,8 +103,18 @@ nhánh làm việc: **`claude/trello-like-task-system-xuc1bz`**.
    - **Bộ lọc mở rộng**: Không có ai / Của tôi / Không nhãn / Đã–Chưa hoàn thành.
    - **Theo dõi thẻ 👁**: nhận thông báo mọi bình luận/di chuyển/hoàn thành dù không là thành viên.
    - **CSS kéo-thả theo số liệu REA đo Trello thật**: placeholder viền đứt nét, cột đích sáng viền.
-   REA drag regression PASS sau toàn bộ thay đổi. Đợt 4 ứng viên: automation theo lịch/ngày hạn
-   + nút thẻ/bảng, hợp nhất thẻ (merge), Table view, kéo-thả cột.
+   REA drag regression PASS sau toàn bộ thay đổi.
+
+6. **Đợt 4 — 17/10/2026**: Butler đầy đủ (automation **theo lịch** hằng ngày/tuần: sort cột,
+   lưu trữ thẻ xong; **theo ngày hạn**: quá hạn/trước hạn 1 ngày → nhãn/chuyển cột, dedupe;
+   **nút thẻ tùy chỉnh**: chuỗi hành động 1 chạm); **hợp nhất thẻ ⇄**; **Table view "Bảng kê"**
+   sort được; **kéo-thả cột** bằng tay cầm ⠿. Audit lần 2: mục 2d tài liệu đào sâu.
+
+7. **Đợt 5 — 17/10/2026**: **ngày bắt đầu + giờ hết hạn** (badge 🕐 dd/mm HH:MM),
+   **hạn định kỳ 🔁** (hoàn thành xong tự dời hạn ngày/tuần/tháng + un-check checklist),
+   **mức nhắc từng thẻ** (không/0/1/2/7 ngày trước), **theo dõi cả board 👁** (kể cả thẻ mới),
+   **thu gọn/mở rộng tất cả cột**, **sao chép board**, **tham gia/rời thẻ 1 chạm**,
+   **xuất CSV** (BOM, mở Excel). REA PASS.
 
 ## Ghi chú cho phiên Claude kế tiếp
 

@@ -259,6 +259,25 @@ CREATE TABLE IF NOT EXISTS card_buttons (
 );
 `);
 
+/* ---------- Migration v6: đợt 5 — ngày giờ nâng cao, theo dõi board ---------- */
+
+if (!hasColumn('cards', 'start_date'))
+  db.exec("ALTER TABLE cards ADD COLUMN start_date TEXT NOT NULL DEFAULT ''");
+if (!hasColumn('cards', 'due_time'))
+  db.exec("ALTER TABLE cards ADD COLUMN due_time TEXT NOT NULL DEFAULT ''");
+if (!hasColumn('cards', 'recur'))
+  db.exec("ALTER TABLE cards ADD COLUMN recur TEXT NOT NULL DEFAULT ''");   // '' | daily | weekly | monthly
+if (!hasColumn('cards', 'remind'))
+  db.exec("ALTER TABLE cards ADD COLUMN remind TEXT NOT NULL DEFAULT '1d'"); // none | 0d | 1d | 2d | 7d
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS board_watchers (
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (board_id, user_id)
+);
+`);
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
