@@ -315,6 +315,88 @@
     }
   }
 
+  // ---- Comment ghim mồi thảo luận ----
+
+  const PINNED_KIEU_LABELS = {
+    thach_thuc_quan_diem: "Thách thức quan điểm",
+    moi_ke_ky_niem: "Mời kể kỷ niệm",
+    khoang_trong_to_mo: "Khơi tò mò"
+  };
+
+  function renderPinnedPanel(suggestions) {
+    document.querySelector(".tlpb-pinned-panel")?.remove();
+    const panel = el("div", "tlpb-pinned-panel");
+
+    const header = el("div", "tlpb-header");
+    header.appendChild(el("span", "tlpb-class", "📌 Gợi ý comment ghim"));
+    const closeBtn = el("button", "tlpb-close", "✕");
+    closeBtn.addEventListener("click", () => panel.remove());
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    for (const item of suggestions) {
+      const row = el("div", "tlpb-suggestion");
+      row.appendChild(
+        el("div", "tlpb-tone", PINNED_KIEU_LABELS[item.kieu] || item.kieu || "Gợi ý")
+      );
+      row.appendChild(el("div", "tlpb-text", item.noi_dung));
+      const actions = el("div", "tlpb-actions");
+      const copyBtn = el("button", "tlpb-action", "Chép");
+      copyBtn.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(item.noi_dung);
+        copyBtn.textContent = "Đã chép ✓";
+        setTimeout(() => (copyBtn.textContent = "Chép"), 1500);
+      });
+      actions.appendChild(copyBtn);
+      row.appendChild(actions);
+      panel.appendChild(row);
+    }
+
+    panel.appendChild(
+      el(
+        "div",
+        "tlpb-disclaimer",
+        "Dán vào ô bình luận bằng tài khoản kênh của bạn, đăng rồi bấm Ghim (⋮ → Pin)."
+      )
+    );
+    document.body.appendChild(panel);
+  }
+
+  async function runPinned(btn) {
+    btn.disabled = true;
+    btn.textContent = "Đang nghĩ…";
+    try {
+      const response = await ext.runtime.sendMessage({
+        type: "pinned",
+        payload: { ...getVideoContext(), otherComments: getOtherComments(null, 12) }
+      });
+      if (response?.ok) {
+        renderPinnedPanel(response.result);
+      } else {
+        showToast(response?.error || "Không tạo được gợi ý comment ghim.");
+      }
+    } catch (e) {
+      showToast(`Lỗi: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "📌 Comment ghim";
+    }
+  }
+
+  function ensurePinnedButton() {
+    const hasComments = document.querySelector("ytd-comments#comments");
+    let btn = document.querySelector(".tlpb-pinned-btn");
+    if (!hasComments) {
+      if (btn) btn.remove();
+      return;
+    }
+    if (btn) return;
+    btn = el("button", "tlpb-scan-btn tlpb-pinned-btn", "📌 Comment ghim");
+    btn.type = "button";
+    btn.addEventListener("click", () => runPinned(btn));
+    document.body.appendChild(btn);
+  }
+
   function ensureScanButton() {
     // Chỉ hiện khi trang có khu bình luận (trang xem video).
     const hasComments = document.querySelector("ytd-comments#comments");
@@ -334,6 +416,7 @@
     // YouTube dùng ytd-comment-view-model (mới) hoặc ytd-comment-renderer (cũ).
     allCommentEls().forEach(injectButton);
     ensureScanButton();
+    ensurePinnedButton();
   }
 
   const observer = new MutationObserver(() => {

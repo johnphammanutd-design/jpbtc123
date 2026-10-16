@@ -82,6 +82,24 @@ const EN_US_SENIOR_STYLE = `Viết các câu trả lời bằng TIẾNG ANH MỸ
 - Phản bác lịch sự với nhóm này phải thật nhã nhặn: "I see it a little differently...", "That's fair, though I'd gently push back on one thing..." rồi hỏi lại ý họ.
 - Xưng hô thân thiện mức vừa phải, không suồng sã.`;
 
+const PINNED_SYSTEM_PROMPT = `Bạn là trợ lý soạn COMMENT GHIM mồi thảo luận cho chủ kênh video.
+Comment này sẽ được đăng công khai bằng chính tài khoản kênh và ghim lên đầu phần bình luận —
+mục tiêu là khiến khán giả thật đổ vào trả lời: kể chuyện của họ, nêu ý kiến, tranh luận với nhau trong thread.
+
+Đề xuất đúng 3 phương án theo 3 kiểu mồi:
+1. "thach_thuc_quan_diem": nêu một quan điểm phổ biến liên quan chủ đề video rồi đặt nghi vấn có lý lẽ — người đồng tình lẫn người phản đối đều muốn lên tiếng.
+2. "moi_ke_ky_niem": câu hỏi mời người xem kể kỷ niệm/trải nghiệm của CHÍNH HỌ về chủ đề — cụ thể, gợi hình ảnh, dễ nhớ lại.
+3. "khoang_trong_to_mo": nêu một chi tiết gây ngạc nhiên hoặc con số khó tin liên quan video và hỏi người xem tin hay không / họ nhớ khác thế nào.
+
+Quy tắc bắt buộc:
+- KHÔNG dùng ngôi thứ nhất ở mọi ngôn ngữ ("I", "we", "my", "mình", "tôi", "chúng tôi"...). Viết dạng câu hỏi, câu đố hoặc nhận định trống ngôi hướng thẳng vào người đọc. Quy tắc này ghi đè mọi mẫu câu khác.
+- Mỗi phương án 1–3 câu, kết bằng câu hỏi cụ thể mà người xem bình thường trả lời được ngay từ trải nghiệm của họ.
+- Không công kích nhóm người nào, không đề tài chính trị/tôn giáo gây chia rẽ, không bịa số liệu — chi tiết gây tò mò phải lấy từ ngữ cảnh video được cung cấp.
+- Bám đúng ngôn ngữ và nhóm khán giả nêu trong ngữ cảnh (với người lớn tuổi: từ đơn giản, câu ngắn, không tiếng lóng, tối đa 1 emoji).
+
+Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
+{ "goi_y": [ { "kieu": "thach_thuc_quan_diem", "noi_dung": "..." }, { "kieu": "moi_ke_ky_niem", "noi_dung": "..." }, { "kieu": "khoang_trong_to_mo", "noi_dung": "..." } ] }`;
+
 const CLASSIFY_SYSTEM_PROMPT = `Bạn là bộ phân loại comment cho chủ kênh video tiếng Việt.
 Với mỗi comment trong danh sách, xếp vào đúng một loại:
 - "tich_cuc": khen, ủng hộ, trung tính vô hại
@@ -154,6 +172,35 @@ function buildSuggestPrompt(payload, settings, usedReplies) {
   }
   parts.push(`Comment cần trả lời, của "${payload.author || "người xem"}": ${payload.commentText}`);
   parts.push("Hãy phân loại comment và đề xuất 3 phương án trả lời theo đúng định dạng JSON.");
+  return parts.join("\n\n");
+}
+
+function buildPinnedPrompt(payload, settings) {
+  const parts = [];
+  parts.push(`Tiêu đề video: ${payload.videoTitle || "(không rõ)"}`);
+  if (payload.videoDescription) {
+    parts.push(`Mô tả/ngữ cảnh video: ${payload.videoDescription.slice(0, 1500)}`);
+  }
+  switch (settings.replyLanguage) {
+    case "en-US":
+      parts.push("Viết các phương án bằng tiếng Anh Mỹ tự nhiên.");
+      break;
+    case "vi":
+      parts.push("Viết các phương án bằng tiếng Việt.");
+      break;
+    default:
+      parts.push("Viết các phương án bằng ngôn ngữ chính của các comment dưới video.");
+  }
+  if (settings.audienceProfile) {
+    parts.push(`Khán giả của kênh: ${settings.audienceProfile}`);
+  }
+  if (Array.isArray(payload.otherComments) && payload.otherComments.length > 0) {
+    parts.push(
+      "Các comment hiện có dưới video (để nắm quan điểm phổ biến và không khí):\n- " +
+        payload.otherComments.join("\n- ")
+    );
+  }
+  parts.push("Soạn 3 phương án comment ghim theo đúng định dạng JSON.");
   return parts.join("\n\n");
 }
 
@@ -366,6 +413,16 @@ async function classifyComments(payload) {
   return { ok: true, result: parsed.ket_qua };
 }
 
+async function suggestPinned(payload) {
+  const settings = await getSettings();
+  const text = await callModel(settings, PINNED_SYSTEM_PROMPT, buildPinnedPrompt(payload, settings));
+  const parsed = extractJson(text);
+  if (!Array.isArray(parsed.goi_y) || parsed.goi_y.length === 0) {
+    throw new Error("Thiếu danh sách gợi ý.");
+  }
+  return { ok: true, result: parsed.goi_y };
+}
+
 async function markUsed(payload) {
   if (!payload?.text) return { ok: true };
   const { usedReplies } = await ext.storage.local.get({ usedReplies: [] });
@@ -380,6 +437,7 @@ async function markUsed(payload) {
 const HANDLERS = {
   suggest: suggestReplies,
   classify: classifyComments,
+  pinned: suggestPinned,
   markUsed
 };
 

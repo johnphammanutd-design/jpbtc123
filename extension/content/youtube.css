@@ -146,6 +146,35 @@
 .tlpb-scan-btn:hover { filter: brightness(1.1); }
 .tlpb-scan-btn:disabled { opacity: 0.7; cursor: wait; }
 
+.tlpb-pinned-btn {
+  bottom: 72px;
+  background: #2ea043;
+}
+
+.tlpb-pinned-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 120px;
+  z-index: 9999;
+  width: 380px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid rgba(46, 160, 67, 0.5);
+  border-radius: 12px;
+  background: rgba(20, 24, 20, 0.97);
+  color: #eee;
+  font-family: "Roboto", "Arial", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.tlpb-pinned-panel .tlpb-class {
+  background: rgba(46, 160, 67, 0.25);
+  color: #3fb950;
+}
+
 .tlpb-badge {
   margin-left: 8px;
   padding: 1px 8px;
