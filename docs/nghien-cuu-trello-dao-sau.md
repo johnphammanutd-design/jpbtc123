@@ -52,6 +52,52 @@ phân tích bản thiết kế lại 2025. Bổ sung cho `nghien-cuu-trello-va-c
 
 Những thứ ta **đã ngang hoặc hơn Trello Free**: automation rule server-side (Trello Free giới hạn 250 lượt/tháng — ta không giới hạn), nhãn có tên, nhiều người/thẻ, lưu trữ/khôi phục, nhật ký 16 loại sự kiện, realtime, calendar view (Trello thu phí), bộ lọc, tìm kiếm toàn cục.
 
+## 2b. Quan sát bản Trello MỚI qua tài khoản đăng nhập của user (16/10/2026, Claude in Chrome)
+
+*Tài khoản Free, giao diện tiếng Việt, dark mode — thấy nguyên bản redesign 2025/2026 đang chạy thật
+(board "Team Task", "cong viec tuan toi" của user). Chính xác hơn mọi tài liệu second-hand ở mục 1-2.*
+
+**Bố cục 3 pane + thanh điều hướng đáy**: `Hộp thư đến | Trình lập kế hoạch | Bảng thông tin | Chuyển đổi các bảng`
++ nút giọng nói — mở được đồng thời Inbox + Planner + Board cạnh nhau, kéo giãn từng pane.
+- **Inbox**: ô "Thêm thẻ" trên cùng; nguồn vào: email chuyển tiếp, giọng nói, extension Chrome, mobile,
+  Slack, Teams, Messenger; ghi chú "Chỉ mình bạn có thể thấy Hộp thư đến" (riêng tư từng người).
+  → Inbox ta làm trùng concept (quick add + riêng tư + chuyển thành thẻ); Trello hơn ở nguồn vào ngoài.
+- **Planner**: 6 chế độ xem (Ngày/Tuần/Tháng/Tùy chỉnh/Chương trình [mặc định, danh sách ngày dọc]/Vừa màn hình),
+  banner "Kết nối tài khoản lịch" (Google/Microsoft), từng ngày hiện "Chưa lên kế hoạch nào".
+  → Planner ta ≈ chế độ "Tuần"; thiếu: chế độ danh sách dọc (agenda), nối lịch ngoài (không cần).
+
+**Board**: mỗi cột có **màu nền riêng** (10 màu + gỡ màu); cột có nút **thu gọn** cạnh số đếm; cột Done gắn 🎉.
+Hover thẻ hiện **bút ✎ sửa nhanh**. Nút "+ Thêm thẻ" dưới đáy cột kèm icon mở từ template.
+**Menu cột** rất giàu: Thêm thẻ / Sao chép / Di chuyển / Di chuyển tất cả thẻ / **Sắp xếp theo** / **Theo dõi**
+/ đổi màu / **automation ngay trong menu** ("Khi thêm thẻ vào danh sách", "Hàng ngày sắp xếp theo",
+"Thứ 2 hàng tuần sắp xếp theo", "Tạo quy tắc") / Lưu trữ cột / Lưu trữ tất cả thẻ trong cột.
+
+**Card back mới (xác nhận tận mắt)**: chip tên cột góc trên-trái (đổi cột tại chỗ); **nút tròn ○ cạnh tiêu đề
+= đánh dấu hoàn thành cả thẻ** (tính năng card-complete 2025); hàng nút `+ Thêm | Nhãn | Ngày | Việc cần làm |
+Thành viên` ngay dưới tiêu đề; cột phải "Nhận xét và hoạt động" + nút "Hiện chi tiết"; thanh đáy nổi
+`Power-up | Tự động hóa | Nhận xét`; góc trên-phải: đặt cover, menu "…", đóng.
+
+**Automation (Butler) đầy đủ 5 nhánh**: Quy tắc / **Theo lịch** (hằng ngày, thứ 2 hằng tuần…) / **Ngày đến hạn**
+(trigger theo hạn) / **Nút thẻ** / **Nút bảng** (custom buttons). Trình tạo rule 3 bước
+(trigger → action → review), 6 nhóm trigger: Card Move, Card Changes, Dates, Checklists, Card Content, Fields;
+mỗi trigger là câu có chip chỉnh được ("when a card is [added to] list [X] [by me/by anyone]").
+
+**Bộ lọc**: từ khóa; thành viên (+ "Không có thành viên", "Các thẻ chỉ định cho tôi");
+**Card status** (đã/chưa hoàn tất); ngày hết hạn (không có / quá hạn / ngày mai / tuần sau / **tháng sau**,
+icon màu theo mức); nhãn (+ "Không có nhãn").
+
+**Gap mới phát hiện so với bảng mục 2** (ứng viên đợt 3):
+| Gap | Ghi chú |
+|---|---|
+| Màu nền cột | 10 màu, rất dễ làm (cột `color` + picker trong menu cột) |
+| Thu gọn cột | đã nằm bảng cũ #6 |
+| Sắp xếp cột (sort theo tên/hạn/ngày tạo) | menu cột |
+| Đánh dấu hoàn thành CẢ THẺ (○ cạnh tiêu đề + lọc theo card status) | ta mới có hoàn thành *hạn* |
+| Sửa nhanh ✎ khi hover thẻ | bảng cũ #8 |
+| Automation theo lịch + theo ngày đến hạn + nút thẻ/bảng | mở rộng bảng rules hiện có |
+| Bộ lọc thêm: không thành viên / thẻ của tôi / không nhãn / card status | nhẹ |
+| Theo dõi (watch) cột/thẻ | gắn với hệ thông báo đã có |
+
 ## 3. Đề xuất đợt 2 (chờ chốt sau pilot, thứ tự ưu tiên)
 
 **Nhóm A — làm ngay được, chạm đúng nhu cầu đội:**
