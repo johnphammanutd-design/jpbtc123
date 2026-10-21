@@ -64,7 +64,7 @@ function money(usd) {
 
 function renderModels(selectedModel) {
   const modelSelect = document.getElementById("model");
-  modelSelect.innerHTML = "";
+  modelSelect.replaceChildren();
   for (const m of modelsOf(currentProvider())) {
     const opt = document.createElement("option");
     opt.value = m.id;
@@ -87,7 +87,7 @@ function renderKeyField() {
 // Bấm vào một dòng để chọn luôn model đó.
 function renderCostTable() {
   const tbody = document.getElementById("costRows");
-  tbody.innerHTML = "";
+  tbody.replaceChildren();
   const selectedId = document.getElementById("model").value;
   const rows = MODELS.map((m) => ({ m, cost: monthlyCost(m) })).sort(
     (a, b) => a.cost - b.cost
@@ -100,11 +100,18 @@ function renderCostTable() {
       m.provider === "anthropic"
         ? `${((cost / ANTHROPIC_MONTHLY_CREDIT) * 100).toFixed(1)}% credit $200`
         : "trả tiền túi";
-    tr.innerHTML = `
-      <td>${m.label}</td>
-      <td>${money(perSuggest)}</td>
-      <td><b>${money(cost)}</b></td>
-      <td>${creditNote}</td>`;
+    const cells = [m.label, money(perSuggest), money(cost), creditNote];
+    cells.forEach((text, i) => {
+      const td = document.createElement("td");
+      if (i === 2) {
+        const b = document.createElement("b");
+        b.textContent = text;
+        td.appendChild(b);
+      } else {
+        td.textContent = text;
+      }
+      tr.appendChild(td);
+    });
     tr.addEventListener("click", () => {
       document.getElementById("provider").value = m.provider;
       renderModels(m.id);

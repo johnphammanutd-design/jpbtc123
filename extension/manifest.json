@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Trợ lý phản biện comment",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Gợi ý câu trả lời phản biện tự nhiên cho comment trái chiều dưới video YouTube. AI chỉ gợi ý — bạn tự chỉnh sửa và tự đăng.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
@@ -34,7 +34,13 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "tro-ly-phan-bien@jpbtc123.example",
-      "strict_min_version": "121.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["websiteContent"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   }
 }
