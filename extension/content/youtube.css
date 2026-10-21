@@ -118,6 +118,34 @@
   color: #3ea6ff;
 }
 
+/* ---- Bản dịch tiếng Việt ---- */
+
+.tlpb-comment-vi {
+  margin: 6px 0 4px;
+  padding: 6px 10px;
+  border-left: 3px solid #3ea6ff;
+  border-radius: 0 6px 6px 0;
+  background: rgba(62, 166, 255, 0.08);
+  font-family: "Roboto", "Arial", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  font-style: italic;
+  opacity: 0.95;
+}
+
+.tlpb-vi {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.tlpb-translate-btn {
+  background: rgba(128, 128, 128, 0.15);
+  color: inherit;
+}
+
 .tlpb-disclaimer {
   margin-top: 8px;
   font-size: 11px;

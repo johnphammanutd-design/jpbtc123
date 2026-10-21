@@ -26,6 +26,9 @@ own API key**:
   repeating itself.
 - **Scan comments:** the text and display names of up to 30 visible comments, and
   the video title.
+- **Translate a comment:** the text and display name of the one comment you chose
+  to translate. Suggest and Scan requests also ask the AI for a Vietnamese
+  translation of the same text; this adds no further data.
 - **Pinned comment ideas:** the video title and description, up to 12 visible
   comments, and your reply language and audience description from Settings.
 

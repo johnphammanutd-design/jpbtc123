@@ -60,18 +60,33 @@ Quy tắc bắt buộc:
 - Nếu comment là góp ý có lý, phương án đầu tiên phải là ghi nhận góp ý một cách thiện chí, rồi hỏi sâu thêm về góp ý đó.
 
 Ngôn ngữ: viết các câu trả lời (noi_dung) bằng đúng ngôn ngữ được yêu cầu trong phần ngữ cảnh;
-riêng "phan_loai" và "nhan_xet" luôn bằng tiếng Việt để chủ kênh đọc nhanh.
+riêng "phan_loai", "nhan_xet" và mọi bản dịch (ban_dich, ban_dich_comment) luôn bằng tiếng Việt để chủ kênh đọc nhanh.
+Bản dịch phải sát nghĩa, tự nhiên, đúng sắc thái; nếu văn bản gốc đã là tiếng Việt thì để chuỗi rỗng "".
 
 Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
 {
   "phan_loai": "gop_y_co_ly" | "hieu_sai_noi_dung" | "che_vo_can_cu" | "troll",
   "nhan_xet": "<1 câu nhận xét ngắn về comment và nên phản ứng thế nào>",
+  "ban_dich_comment": "<bản dịch tiếng Việt của comment cần trả lời>",
   "goi_y": [
-    { "giong": "phan_bien", "noi_dung": "..." },
-    { "giong": "hai_huoc", "noi_dung": "..." },
-    { "giong": "lich_su", "noi_dung": "..." }
+    { "giong": "phan_bien", "noi_dung": "...", "ban_dich": "<bản dịch tiếng Việt của noi_dung>" },
+    { "giong": "hai_huoc", "noi_dung": "...", "ban_dich": "..." },
+    { "giong": "lich_su", "noi_dung": "...", "ban_dich": "..." }
   ]
 }`;
+
+const TRANSLATE_SYSTEM_PROMPT = `Bạn là dịch giả cho chủ kênh video người Việt.
+Dịch comment được đưa vào sang tiếng Việt tự nhiên, sát nghĩa, giữ đúng sắc thái (đùa, mỉa mai, giận dữ, thân thiện) và các tên riêng.
+Nếu comment vốn đã là tiếng Việt thì trả "ban_dich" là chuỗi rỗng "".
+Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
+{ "ban_dich": "..." }`;
+
+// Hướng dẫn về bản dịch tiếng Việt kèm theo kết quả (có thể tắt trong Cài đặt).
+function translationInstruction(settings) {
+  return settings.showTranslation === false
+    ? 'Không cần bản dịch: để mọi trường "ban_dich" và "ban_dich_comment" là chuỗi rỗng "".'
+    : 'Kèm bản dịch tiếng Việt vào các trường "ban_dich" và "ban_dich_comment" như mẫu.';
+}
 
 // Quy tắc văn phong khi trả lời bằng tiếng Anh Mỹ cho khán giả lớn tuổi.
 const EN_US_SENIOR_STYLE = `Viết các câu trả lời bằng TIẾNG ANH MỸ tự nhiên, phù hợp người đọc lớn tuổi (60+):
@@ -98,7 +113,8 @@ Quy tắc bắt buộc:
 - Bám đúng ngôn ngữ và nhóm khán giả nêu trong ngữ cảnh (với người lớn tuổi: từ đơn giản, câu ngắn, không tiếng lóng, tối đa 1 emoji).
 
 Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
-{ "goi_y": [ { "kieu": "thach_thuc_quan_diem", "noi_dung": "..." }, { "kieu": "moi_ke_ky_niem", "noi_dung": "..." }, { "kieu": "khoang_trong_to_mo", "noi_dung": "..." } ] }`;
+Mỗi phương án kèm "ban_dich": bản dịch tiếng Việt của "noi_dung" (chuỗi rỗng nếu noi_dung vốn đã là tiếng Việt).
+{ "goi_y": [ { "kieu": "thach_thuc_quan_diem", "noi_dung": "...", "ban_dich": "..." }, { "kieu": "moi_ke_ky_niem", "noi_dung": "...", "ban_dich": "..." }, { "kieu": "khoang_trong_to_mo", "noi_dung": "...", "ban_dich": "..." } ] }`;
 
 const CLASSIFY_SYSTEM_PROMPT = `Bạn là bộ phân loại comment cho chủ kênh video tiếng Việt.
 Với mỗi comment trong danh sách, xếp vào đúng một loại:
@@ -109,7 +125,8 @@ Với mỗi comment trong danh sách, xếp vào đúng một loại:
 - "troll": khiêu khích, gây hấn thuần túy
 
 Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào khác) theo mẫu:
-{ "ket_qua": [ { "id": <số id của comment>, "phan_loai": "<loại>" } ] }
+{ "ket_qua": [ { "id": <số id của comment>, "phan_loai": "<loại>", "ban_dich": "<bản dịch tiếng Việt của comment>" } ] }
+"ban_dich" dịch sát nghĩa, tự nhiên sang tiếng Việt; nếu comment vốn đã là tiếng Việt thì để chuỗi rỗng "".
 Phải trả kết quả cho đủ mọi id được đưa vào.`;
 
 function languageInstruction(settings) {
@@ -171,6 +188,7 @@ function buildSuggestPrompt(payload, settings, usedReplies) {
     );
   }
   parts.push(`Comment cần trả lời, của "${payload.author || "người xem"}": ${payload.commentText}`);
+  parts.push(translationInstruction(settings));
   parts.push("Hãy phân loại comment và đề xuất 3 phương án trả lời theo đúng định dạng JSON.");
   return parts.join("\n\n");
 }
@@ -200,17 +218,19 @@ function buildPinnedPrompt(payload, settings) {
         payload.otherComments.join("\n- ")
     );
   }
+  parts.push(translationInstruction(settings));
   parts.push("Soạn 3 phương án comment ghim theo đúng định dạng JSON.");
   return parts.join("\n\n");
 }
 
-function buildClassifyPrompt(payload) {
+function buildClassifyPrompt(payload, settings) {
   const lines = payload.comments.map(
     (c) => `[${c.id}] ${c.author ? c.author + ": " : ""}${c.text.slice(0, 500)}`
   );
   return [
     `Tiêu đề video: ${payload.videoTitle || "(không rõ)"}`,
     `Danh sách comment:\n${lines.join("\n")}`,
+    translationInstruction(settings),
     "Phân loại từng comment theo đúng định dạng JSON."
   ].join("\n\n");
 }
@@ -234,6 +254,7 @@ async function getSettings() {
     voiceProfile: "",
     replyLanguage: "en-US",
     audienceProfile: "Người Mỹ lớn tuổi, trên 60 tuổi",
+    showTranslation: true,
     usedReplies: [],
     apiKey: "" // khóa Anthropic từ phiên bản đầu của extension
   });
@@ -405,7 +426,11 @@ async function classifyComments(payload) {
     throw new Error("Không có comment nào để quét.");
   }
   const settings = await getSettings();
-  const text = await callModel(settings, CLASSIFY_SYSTEM_PROMPT, buildClassifyPrompt(payload));
+  const text = await callModel(
+    settings,
+    CLASSIFY_SYSTEM_PROMPT,
+    buildClassifyPrompt(payload, settings)
+  );
   const parsed = extractJson(text);
   if (!Array.isArray(parsed.ket_qua)) {
     throw new Error("Thiếu danh sách kết quả phân loại.");
@@ -423,6 +448,16 @@ async function suggestPinned(payload) {
   return { ok: true, result: parsed.goi_y };
 }
 
+// Dịch một comment sang tiếng Việt (nút 🌐 Dịch cạnh comment).
+async function translateComment(payload) {
+  if (!payload?.text) throw new Error("Không có nội dung để dịch.");
+  const settings = await getSettings();
+  const userPrompt = `Comment${payload.author ? ` của "${payload.author}"` : ""}: ${payload.text.slice(0, 1500)}`;
+  const text = await callModel(settings, TRANSLATE_SYSTEM_PROMPT, userPrompt);
+  const parsed = extractJson(text);
+  return { ok: true, result: typeof parsed.ban_dich === "string" ? parsed.ban_dich : "" };
+}
+
 async function markUsed(payload) {
   if (!payload?.text) return { ok: true };
   const { usedReplies } = await ext.storage.local.get({ usedReplies: [] });
@@ -438,6 +473,7 @@ const HANDLERS = {
   suggest: suggestReplies,
   classify: classifyComments,
   pinned: suggestPinned,
+  translate: translateComment,
   markUsed
 };
 

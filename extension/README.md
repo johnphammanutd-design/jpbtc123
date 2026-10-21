@@ -67,6 +67,20 @@ dưới video (không khí thảo luận chung) và comment gốc của thread n
 lời một reply. Kéo tương tác bằng tò mò và lý lẽ — không dùng chọc giận/mỉa mai,
 vì comment làm người đọc nổi nóng dễ bị report và hại đề xuất của kênh.
 
+### Bản dịch tiếng Việt (v0.7.0)
+
+Comment tiếng Anh (hoặc ngôn ngữ khác) được dịch sang tiếng Việt để bạn đọc nhanh:
+
+- Nút **🌐 Dịch** cạnh mỗi comment: bấm một lần để hiện bản dịch ngay dưới comment,
+  bấm lần nữa để ẩn. Comment vốn là tiếng Việt thì không dịch.
+- **Gợi ý trả lời**: bản dịch của comment hiện dưới comment, và dưới từng câu trả lời
+  tiếng Anh có một dòng dịch nhỏ để bạn biết mình sắp đăng gì. Nút Chép và Điền chỉ dùng
+  bản tiếng Anh.
+- **Quét comment trái chiều** và **Comment ghim**: bản dịch được kèm sẵn trong cùng một
+  lần gọi, không tốn thêm lượt gọi.
+- Trong Cài đặt có ô **Kèm bản dịch tiếng Việt** để tắt, tiết kiệm khoảng 30–60% chi phí
+  mỗi lần gọi. Nút 🌐 Dịch luôn dùng được.
+
 ### Quét comment trái chiều
 
 Trên trang xem video có nút nổi **🔍 Quét comment trái chiều** (góc phải dưới):
@@ -83,17 +97,17 @@ khuôn câu đã dùng — comment trả lời nghe đỡ "một màu".
 
 ## Chi phí — so sánh API (khảo sát 10/2026)
 
-Mỗi lần gợi ý tốn khoảng **1.200 token input + 250 token output**. Chi phí ước tính
+Mỗi lần gợi ý (kèm bản dịch tiếng Việt) tốn khoảng **1.200 token input + 450 token output**. Chi phí ước tính
 cho **1.000 lần gợi ý** theo từng API (USD, giá /1M token input|output):
 
 | API | Giá input | Giá output | ~1.000 lần gợi ý |
 |---|---|---|---|
-| **Claude Haiku 4.5** (mặc định) | $1.00 | $5.00 | ~$2.45 |
-| Claude Sonnet 5.5 | $2.00 | $10.00 | ~$4.90 |
-| Claude Opus 5.5 | $4.00 | $20.00 | ~$9.80 |
-| OpenAI GPT-5 nano | $0.05 | $0.40 | **~$0.16** |
-| Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | ~$0.22 |
-| DeepSeek chat (v4-flash) | $0.14 | $0.28 | ~$0.24 |
+| **Claude Haiku 4.5** (mặc định) | $1.00 | $5.00 | ~$3.45 |
+| Claude Sonnet 5.5 | $2.00 | $10.00 | ~$6.90 |
+| Claude Opus 5.5 | $4.00 | $20.00 | ~$13.80 |
+| OpenAI GPT-5 nano | $0.05 | $0.40 | **~$0.24** |
+| Google Gemini 2.5 Flash-Lite | $0.10 | $0.40 | ~$0.30 |
+| DeepSeek chat (v4-flash) | $0.14 | $0.28 | ~$0.29 |
 
 Mặc định là **Claude Haiku 4.5** — model rẻ nhất nhà Claude: tài khoản có API
 credit hàng tháng của Anthropic (ví dụ $200/tháng kèm gói Max) thì $200 tương

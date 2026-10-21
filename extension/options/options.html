@@ -116,7 +116,7 @@
       <input id="scansPerDay" type="number" min="0" max="1000" value="10" />
     </div>
   </div>
-  <p class="hint">Mỗi gợi ý ≈ 1.200 token vào + 250 token ra; mỗi lần quét 30 comment ≈ 2.000 + 400. Bảng dưới xếp từ rẻ đến đắt — <b>bấm vào một dòng để chọn model đó</b>.</p>
+  <p class="hint">Mỗi gợi ý (kèm bản dịch) ≈ 1.200 token vào + 450 token ra; mỗi lần quét 30 comment (kèm bản dịch) ≈ 2.000 + 1.500. Bảng dưới xếp từ rẻ đến đắt — <b>bấm vào một dòng để chọn model đó</b>.</p>
   <table class="cost-table">
     <thead>
       <tr><th>Model</th><th>1 lần gợi ý</th><th>Chi phí / tháng</th><th>Ghi chú</th></tr>
@@ -135,6 +135,12 @@
   <label for="audienceProfile">Khán giả của kênh</label>
   <p class="hint">AI chỉnh văn phong theo nhóm khán giả này. Với "người trên 60 tuổi", câu trả lời sẽ ấm áp, lịch sự, câu ngắn rõ ràng, không tiếng lóng, và mời họ chia sẻ kỷ niệm/kinh nghiệm.</p>
   <input id="audienceProfile" type="text" placeholder="Ví dụ: Người Mỹ lớn tuổi, trên 60 tuổi" />
+
+  <label>
+    <input id="showTranslation" type="checkbox" checked />
+    Kèm bản dịch tiếng Việt
+  </label>
+  <p class="hint">Hiện bản dịch tiếng Việt dưới comment (khi quét hoặc bấm Gợi ý) và dưới từng câu trả lời tiếng Anh, để bạn biết mình sắp đăng gì. Tắt đi sẽ tiết kiệm khoảng 30–60% chi phí mỗi lần gọi. Nút 🌐 Dịch cạnh mỗi comment luôn dùng được.</p>
 
   <label for="defaultTone">Giọng ưu tiên</label>
   <p class="hint">AI vẫn đưa 3 phương án, nhưng sẽ chăm chút nhất cho giọng này.</p>

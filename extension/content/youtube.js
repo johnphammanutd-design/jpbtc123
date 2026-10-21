@@ -82,8 +82,26 @@
     return true;
   }
 
+  // Dòng bản dịch tiếng Việt nhỏ, nghiêng, đặt dưới một đoạn văn bản gốc.
+  function viLine(text) {
+    return el("div", "tlpb-vi", `🌐 ${text}`);
+  }
+
+  // Hiện bản dịch tiếng Việt ngay dưới nội dung comment trên trang.
+  // Trả về false nếu không có bản dịch (comment vốn đã là tiếng Việt).
+  function setCommentTranslation(commentEl, text) {
+    commentEl.querySelector(".tlpb-comment-vi")?.remove();
+    if (!text) return false;
+    const textEl = commentEl.querySelector("#content-text");
+    if (!textEl) return false;
+    const box = el("div", "tlpb-comment-vi", `🌐 ${text}`);
+    (textEl.closest("#expander") || textEl).insertAdjacentElement("afterend", box);
+    return true;
+  }
+
   function renderSuggestions(commentEl, result) {
     removePanel(commentEl);
+    setCommentTranslation(commentEl, result.ban_dich_comment);
     const panel = el("div", PANEL_CLASS);
 
     const header = el("div", "tlpb-header");
@@ -105,6 +123,7 @@
         el("div", "tlpb-tone", TONE_LABELS[item.giong] || item.giong || "Gợi ý")
       );
       row.appendChild(el("div", "tlpb-text", item.noi_dung));
+      if (item.ban_dich) row.appendChild(viLine(item.ban_dich));
 
       const actions = el("div", "tlpb-actions");
       // Ghi lại câu người dùng chọn để các lần gợi ý sau không lặp khuôn câu.
@@ -225,6 +244,43 @@
     button.type = "button";
     button.addEventListener("click", () => onSuggestClick(commentEl, button));
     toolbar.appendChild(button);
+
+    const translateBtn = el("button", `${BTN_CLASS} tlpb-translate-btn`, "🌐 Dịch");
+    translateBtn.type = "button";
+    translateBtn.addEventListener("click", () => onTranslateClick(commentEl, translateBtn));
+    toolbar.appendChild(translateBtn);
+  }
+
+  // Bấm lần một: dịch comment sang tiếng Việt và hiện ngay dưới comment.
+  // Bấm lần hai: ẩn bản dịch.
+  async function onTranslateClick(commentEl, button) {
+    if (commentEl.querySelector(".tlpb-comment-vi")) {
+      commentEl.querySelector(".tlpb-comment-vi").remove();
+      return;
+    }
+    const data = getCommentData(commentEl);
+    if (!data.commentText) {
+      showToast("Không đọc được nội dung comment này.");
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Đang dịch…";
+    try {
+      const response = await ext.runtime.sendMessage({
+        type: "translate",
+        payload: { text: data.commentText, author: data.author }
+      });
+      if (!response?.ok) {
+        showToast(response?.error || "Dịch thất bại.");
+      } else if (!setCommentTranslation(commentEl, response.result)) {
+        showToast("Comment này đã bằng tiếng Việt.");
+      }
+    } catch (e) {
+      showToast(`Lỗi khi dịch: ${e.message}`);
+    } finally {
+      button.disabled = false;
+      button.textContent = "🌐 Dịch";
+    }
   }
 
   // ---- Quét & đánh dấu comment trái chiều ----
@@ -300,6 +356,7 @@
         );
         if (!commentEl) continue;
         setBadge(commentEl, item.phan_loai);
+        if (item.ban_dich) setCommentTranslation(commentEl, item.ban_dich);
         if (NEGATIVE_CLASSES.includes(item.phan_loai)) negative++;
       }
       showToast(
@@ -340,6 +397,7 @@
         el("div", "tlpb-tone", PINNED_KIEU_LABELS[item.kieu] || item.kieu || "Gợi ý")
       );
       row.appendChild(el("div", "tlpb-text", item.noi_dung));
+      if (item.ban_dich) row.appendChild(viLine(item.ban_dich));
       const actions = el("div", "tlpb-actions");
       const copyBtn = el("button", "tlpb-action", "Chép");
       copyBtn.addEventListener("click", async () => {

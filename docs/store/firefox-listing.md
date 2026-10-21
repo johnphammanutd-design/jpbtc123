@@ -31,6 +31,7 @@ Click "Suggest reply" next to any comment and the add-on drafts three replies in
 
 FEATURES
 • Reply suggestions: three drafts per comment, with a short note on how to approach it.
+• Vietnamese translation: a "Translate" button next to each comment shows a Vietnamese translation right below it, and every drafted reply comes with a Vietnamese translation so you know exactly what you are about to post. Can be switched off in Settings.
 • Scan comments: classify up to 30 visible comments (positive, fair criticism, misunderstanding, unsupported criticism, troll) so you know which ones deserve a reply first.
 • Pinned comment ideas: three discussion starters for a pinned comment, based on the video title, description and existing comments.
 • Audience and voice settings: choose the reply language (US English by default, Vietnamese, or automatic), describe your audience (for example, older viewers) and your channel's voice.
@@ -78,7 +79,7 @@ Chọn theo ý bạn. Nếu không muốn mở mã nguồn, chọn "All Rights R
 ```
 How to test: the add-on needs the tester's own API key from one of the supported providers (Anthropic, OpenAI, Google Gemini or DeepSeek). Open the add-on Settings (about:addons > the add-on > Preferences, or the popup > "Mở cài đặt"), choose a provider, paste a key and Save. Then open any YouTube watch page with comments, and click "💬 Gợi ý trả lời" next to a comment. The floating buttons at the bottom right scan comments and suggest pinned comments.
 
-The interface text is in Vietnamese; button meanings: "Gợi ý trả lời" = Suggest reply, "Quét comment trái chiều" = Scan comments, "Comment ghim" = Pinned comment, "Mở cài đặt" = Open settings, "Lưu" = Save.
+The interface text is in Vietnamese; button meanings: "Gợi ý trả lời" = Suggest reply, "Quét comment trái chiều" = Scan comments, "Comment ghim" = Pinned comment, "Dịch" = Translate (shows a Vietnamese translation under the comment), "Mở cài đặt" = Open settings, "Lưu" = Save.
 
 Data flow: nothing is sent until the user clicks a button. Then the selected comment, video title/description and some nearby comments go from the user's browser to the AI provider the user chose, with the user's own API key (host permissions are limited to those four API domains). The add-on has no servers, no analytics and downloads no remote code. data_collection_permissions declares websiteContent for that reason. The add-on never posts comments; it only fills the reply box on request.
 

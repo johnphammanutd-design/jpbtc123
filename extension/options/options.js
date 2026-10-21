@@ -28,8 +28,9 @@ const KEY_HINTS = {
 };
 
 // Token trung bình đo theo prompt hiện tại của extension.
-const SUGGEST_TOKENS = { in: 1200, out: 250 }; // 1 lần gợi ý trả lời
-const SCAN_TOKENS = { in: 2000, out: 400 }; // 1 lần quét 30 comment
+// Đã tính cả bản dịch tiếng Việt (bật mặc định).
+const SUGGEST_TOKENS = { in: 1200, out: 450 }; // 1 lần gợi ý trả lời
+const SCAN_TOKENS = { in: 2000, out: 1500 }; // 1 lần quét 30 comment
 const ANTHROPIC_MONTHLY_CREDIT = 200; // USD, gói có credit API hàng tháng
 
 let apiKeys = {};
@@ -137,6 +138,7 @@ async function load() {
     voiceProfile: "",
     replyLanguage: "en-US",
     audienceProfile: "Người Mỹ lớn tuổi, trên 60 tuổi",
+    showTranslation: true,
     apiKey: "" // bản cũ chỉ có Anthropic
   });
   apiKeys = stored.apiKeys || {};
@@ -149,6 +151,7 @@ async function load() {
   document.getElementById("voiceProfile").value = stored.voiceProfile;
   document.getElementById("replyLanguage").value = stored.replyLanguage;
   document.getElementById("audienceProfile").value = stored.audienceProfile;
+  document.getElementById("showTranslation").checked = stored.showTranslation !== false;
   renderAll(stored.model);
 }
 
@@ -161,7 +164,8 @@ async function save() {
     defaultTone: document.getElementById("defaultTone").value,
     voiceProfile: document.getElementById("voiceProfile").value.trim(),
     replyLanguage: document.getElementById("replyLanguage").value,
-    audienceProfile: document.getElementById("audienceProfile").value.trim()
+    audienceProfile: document.getElementById("audienceProfile").value.trim(),
+    showTranslation: document.getElementById("showTranslation").checked
   });
   const status = document.getElementById("status");
   status.textContent = "Đã lưu ✓";
