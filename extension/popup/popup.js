@@ -67,6 +67,12 @@ function isNewer(latest, current) {
 document.getElementById("version").textContent =
   "v" + ext.runtime.getManifest().version;
 
+// Bản Firefox phát hành trên addons.mozilla.org được Mozilla tự cập nhật,
+// nên ẩn toàn bộ phần kiểm tra/tải bản mới thủ công.
+if (ext.runtime.getManifest().browser_specific_settings) {
+  document.body.classList.add("store-managed");
+}
+
 document.getElementById("checkUpdate").addEventListener("click", async () => {
   const status = document.getElementById("updateStatus");
   status.textContent = "Đang kiểm tra…";

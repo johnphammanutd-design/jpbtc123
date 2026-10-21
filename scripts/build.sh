@@ -36,6 +36,10 @@ path = sys.argv[1]
 with open(path) as f:
     m = json.load(f)
 m["background"].pop("service_worker", None)
+# Bản store tự cập nhật, không cần quyền đọc GitHub cho nút kiểm tra bản mới.
+m["host_permissions"] = [
+    h for h in m["host_permissions"] if "raw.githubusercontent.com" not in h
+]
 with open(path, "w") as f:
     json.dump(m, f, ensure_ascii=False, indent=2)
     f.write("\n")

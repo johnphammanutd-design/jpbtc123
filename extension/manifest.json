@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Trợ lý phản biện comment",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Gợi ý câu trả lời phản biện tự nhiên cho comment trái chiều dưới video YouTube. AI chỉ gợi ý — bạn tự chỉnh sửa và tự đăng.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage"],
   "host_permissions": [
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",
