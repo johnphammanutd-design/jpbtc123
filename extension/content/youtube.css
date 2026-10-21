@@ -141,6 +141,16 @@
   opacity: 0.75;
 }
 
+.tlpb-caution {
+  margin: 2px 0 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(210, 153, 34, 0.14);
+  color: #d29922;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .tlpb-translate-btn {
   background: rgba(128, 128, 128, 0.15);
   color: inherit;

@@ -59,6 +59,13 @@ Quy tắc bắt buộc:
 - Nếu comment là troll/khiêu khích thuần túy, hãy nói rõ trong phân loại và khuyên bỏ qua hoặc chỉ đáp một câu hóa giải nhẹ nhàng (troll không đáng được kéo vào đối thoại).
 - Nếu comment là góp ý có lý, phương án đầu tiên phải là ghi nhận góp ý một cách thiện chí, rồi hỏi sâu thêm về góp ý đó.
 
+Phương án "chuyen_gia" (CHỈ viết khi phần ngữ cảnh yêu cầu thêm): phản biện từ góc nhìn tâm lý học kết hợp pháp lý, như một bình luận chia sẻ kiến thức phổ thông, KHÔNG phải tư vấn chuyên môn:
+- Phần tâm lý: nêu MỘT khái niệm tâm lý học phổ biến, được công nhận rộng rãi (ví dụ: trí nhớ được dựng lại theo thời gian, thiên kiến xác nhận, hiệu ứng mốc neo, hoài niệm làm đẹp quá khứ) và áp dụng vào CHỦ ĐỀ đang bàn như một hiện tượng chung của con người ("nhiều người thường...", "trí nhớ về giá cả hay bị..."). TUYỆT ĐỐI không chẩn đoán, gán nhãn hay đoán tâm lý riêng của người comment ("bạn đang bị...", "đây là dấu hiệu của...").
+- Phần pháp lý: chỉ nêu một nguyên tắc pháp lý chung, phổ biến và chắc chắn đúng, và CHỈ khi nó thật sự liên quan đến chủ đề (ví dụ: phân biệt nêu ý kiến với khẳng định sự thật có thể gây hại danh dự; quyền riêng tư về hình ảnh; nguyên tắc sử dụng hợp lý tài liệu có bản quyền). Luôn nói rõ quy định tùy từng nơi. Không trích điều luật, số hiệu, án lệ hay mức phạt nếu ngữ cảnh video không cung cấp; không bịa. Nếu chủ đề không liên quan pháp lý thì bỏ phần này, chỉ dùng phần tâm lý và lý lẽ, đừng gượng ép.
+- KHÔNG xưng là nhà tâm lý, luật sư, bác sĩ hay chuyên gia, không nhắc bằng cấp hay kinh nghiệm hành nghề ("theo chuyên môn của tôi", "as a psychologist/lawyer"). Nói về kiến thức chung: "tâm lý học gọi hiện tượng này là...", "về nguyên tắc chung, luật nhiều nơi phân biệt...".
+- KHÔNG dùng pháp lý để đe dọa hay làm người kia sợ: không nhắc kiện tụng, tố cáo, báo cáo hay bị phạt nhắm vào người comment.
+- Giải thích khái niệm bằng lời thường, tránh thuật ngữ nặng, và vẫn kết bằng móc tương tác cụ thể như các phương án khác (tối đa 3 câu).
+
 Ngôn ngữ: viết các câu trả lời (noi_dung) bằng đúng ngôn ngữ được yêu cầu trong phần ngữ cảnh;
 riêng "phan_loai", "nhan_xet" và mọi bản dịch (ban_dich, ban_dich_comment) luôn bằng tiếng Việt để chủ kênh đọc nhanh.
 Bản dịch phải sát nghĩa, tự nhiên, đúng sắc thái; nếu văn bản gốc đã là tiếng Việt thì để chuỗi rỗng "".
@@ -73,7 +80,8 @@ Luôn trả lời bằng đúng một khối JSON (không kèm văn bản nào k
     { "giong": "hai_huoc", "noi_dung": "...", "ban_dich": "..." },
     { "giong": "lich_su", "noi_dung": "...", "ban_dich": "..." }
   ]
-}`;
+}
+Khi ngữ cảnh yêu cầu phương án góc nhìn chuyên gia, thêm phần tử thứ tư vào cuối "goi_y": { "giong": "chuyen_gia", "noi_dung": "...", "ban_dich": "..." }`;
 
 const TRANSLATE_SYSTEM_PROMPT = `Bạn là dịch giả cho chủ kênh video người Việt.
 Dịch comment được đưa vào sang tiếng Việt tự nhiên, sát nghĩa, giữ đúng sắc thái (đùa, mỉa mai, giận dữ, thân thiện) và các tên riêng.
@@ -189,7 +197,16 @@ function buildSuggestPrompt(payload, settings, usedReplies) {
   }
   parts.push(`Comment cần trả lời, của "${payload.author || "người xem"}": ${payload.commentText}`);
   parts.push(translationInstruction(settings));
-  parts.push("Hãy phân loại comment và đề xuất 3 phương án trả lời theo đúng định dạng JSON.");
+  if (settings.expertAngle !== false) {
+    parts.push(
+      'Thêm phương án thứ 4 với "giong": "chuyen_gia" (góc nhìn tâm lý học kết hợp pháp lý) vào cuối "goi_y", theo đúng các quy tắc của phương án này.'
+    );
+  }
+  parts.push(
+    settings.expertAngle !== false
+      ? "Hãy phân loại comment và đề xuất 4 phương án trả lời theo đúng định dạng JSON."
+      : "Hãy phân loại comment và đề xuất 3 phương án trả lời theo đúng định dạng JSON."
+  );
   return parts.join("\n\n");
 }
 
@@ -255,6 +272,7 @@ async function getSettings() {
     replyLanguage: "en-US",
     audienceProfile: "Người Mỹ lớn tuổi, trên 60 tuổi",
     showTranslation: true,
+    expertAngle: true,
     usedReplies: [],
     apiKey: "" // khóa Anthropic từ phiên bản đầu của extension
   });

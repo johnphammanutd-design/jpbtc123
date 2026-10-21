@@ -11,7 +11,8 @@
   const TONE_LABELS = {
     phan_bien: "Phản biện",
     hai_huoc: "Hài hước",
-    lich_su: "Lịch sự"
+    lich_su: "Lịch sự",
+    chuyen_gia: "Góc nhìn tâm lý + pháp lý"
   };
 
   const CLASS_LABELS = {
@@ -124,6 +125,15 @@
       );
       row.appendChild(el("div", "tlpb-text", item.noi_dung));
       if (item.ban_dich) row.appendChild(viLine(item.ban_dich));
+      if (item.giong === "chuyen_gia") {
+        row.appendChild(
+          el(
+            "div",
+            "tlpb-caution",
+            "⚠️ Chỉ là chia sẻ kiến thức phổ thông, không phải tư vấn. Kiểm tra lại độ chính xác (nhất là phần pháp lý, luật tùy từng nơi) trước khi đăng, và đừng nhận mình là chuyên gia."
+          )
+        );
+      }
 
       const actions = el("div", "tlpb-actions");
       // Ghi lại câu người dùng chọn để các lần gợi ý sau không lặp khuôn câu.

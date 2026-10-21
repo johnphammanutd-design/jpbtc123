@@ -31,6 +31,7 @@ Click "Suggest reply" next to any comment and the add-on drafts three replies in
 
 FEATURES
 • Reply suggestions: three drafts per comment, with a short note on how to approach it.
+• Psychology and law angle: an optional fourth draft that answers from a general psychology and legal-principles perspective, in plain words. It is general information, not professional advice, and never claims credentials. Can be switched off in Settings.
 • Vietnamese translation: a "Translate" button next to each comment shows a Vietnamese translation right below it, and every drafted reply comes with a Vietnamese translation so you know exactly what you are about to post. Can be switched off in Settings.
 • Scan comments: classify up to 30 visible comments (positive, fair criticism, misunderstanding, unsupported criticism, troll) so you know which ones deserve a reply first.
 • Pinned comment ideas: three discussion starters for a pinned comment, based on the video title, description and existing comments.
@@ -50,6 +51,7 @@ Nothing is sent until you click a button. Then the comment text, video title and
 NOTES
 • The add-on interface is currently in Vietnamese. Generated replies can be in English, Vietnamese, or the language of each comment.
 • Works on youtube.com.
+• Drafts from the psychology and law angle are general information, not professional or legal advice. Always check them before posting.
 • Independent project, not affiliated with YouTube, Google, Anthropic, OpenAI or DeepSeek.
 ```
 

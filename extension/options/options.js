@@ -28,8 +28,8 @@ const KEY_HINTS = {
 };
 
 // Token trung bình đo theo prompt hiện tại của extension.
-// Đã tính cả bản dịch tiếng Việt (bật mặc định).
-const SUGGEST_TOKENS = { in: 1200, out: 450 }; // 1 lần gợi ý trả lời
+// Đã tính bản dịch tiếng Việt và phương án góc nhìn chuyên gia (bật mặc định).
+const SUGGEST_TOKENS = { in: 1500, out: 600 }; // 1 lần gợi ý trả lời
 const SCAN_TOKENS = { in: 2000, out: 1500 }; // 1 lần quét 30 comment
 const ANTHROPIC_MONTHLY_CREDIT = 200; // USD, gói có credit API hàng tháng
 
@@ -139,6 +139,7 @@ async function load() {
     replyLanguage: "en-US",
     audienceProfile: "Người Mỹ lớn tuổi, trên 60 tuổi",
     showTranslation: true,
+    expertAngle: true,
     apiKey: "" // bản cũ chỉ có Anthropic
   });
   apiKeys = stored.apiKeys || {};
@@ -152,6 +153,7 @@ async function load() {
   document.getElementById("replyLanguage").value = stored.replyLanguage;
   document.getElementById("audienceProfile").value = stored.audienceProfile;
   document.getElementById("showTranslation").checked = stored.showTranslation !== false;
+  document.getElementById("expertAngle").checked = stored.expertAngle !== false;
   renderAll(stored.model);
 }
 
@@ -165,7 +167,8 @@ async function save() {
     voiceProfile: document.getElementById("voiceProfile").value.trim(),
     replyLanguage: document.getElementById("replyLanguage").value,
     audienceProfile: document.getElementById("audienceProfile").value.trim(),
-    showTranslation: document.getElementById("showTranslation").checked
+    showTranslation: document.getElementById("showTranslation").checked,
+    expertAngle: document.getElementById("expertAngle").checked
   });
   const status = document.getElementById("status");
   status.textContent = "Đã lưu ✓";
