@@ -1,5 +1,9 @@
 # Tình trạng dự án — Bảng công việc công ty (Trello nội bộ)
 
+## Cập nhật iOS — 26/10/2026
+
+Đã thêm ứng dụng SwiftUI native trong `ios/`, kết nối cùng API/tài khoản/phân quyền với web. Có các màn hình Tổng quan, Task/bảng/thẻ/gửi duyệt, Inbox/Planner, thông báo và quản trị team/tài khoản; menu bảng/thẻ bao phủ nhiều chức năng hiện có. Đã build Debug Simulator và Release iPhoneOS chưa ký; 10 test Swift/API (gồm luồng backend demo thực) qua. Đã chạy qua giao diện Xcode trên iPhone 18 Pro mô phỏng (iOS 27.0); kiểm tra đăng nhập nhân viên/leader, bảng/thẻ/menu và luồng nhân viên gửi duyệt → leader duyệt → công việc lặp chuyển kỳ. Lỗi CoreSimulatorService từ sandbox dòng lệnh không cản chạy trực tiếp bằng Xcode. Chưa kiểm thử trên iPhone thật hoặc nghiệm thu mọi màn hình. Chưa có push nền APNs, chữ ký/phân phối hay kiểm chứng đầy đủ mức tương đương web. Người dùng hiện chưa có Apple Developer trả phí; không cản việc phát triển/build. Chi tiết chức năng, giới hạn và cách chạy: [ios/README.md](../ios/README.md).
+
 ## Cập nhật Codex — 26/10/2026 (đã triển khai web)
 
 Bản web/API mới đã thêm phân quyền bảng/team/leader, quy trình gửi duyệt/yêu cầu sửa/duyệt hoàn thành, checklist nhiều nhóm có người và hạn, sửa bình luận/phản ứng, sao chép dữ liệu đầy đủ hơn, công cụ thao tác cột, tổng quan theo team và các sửa lỗi lịch/Planner/nhắc hạn/công việc lặp. Đã qua 21 nhóm kiểm thử trên Node.js 22 trong image triển khai, kiểm tra migration/sao chép trên bản sao dữ liệu thật và kiểm tra giao diện production bằng Chrome. Đây là nền web/API cho mobile; chưa phải app iOS native.
