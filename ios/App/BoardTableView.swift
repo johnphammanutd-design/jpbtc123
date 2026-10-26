@@ -14,7 +14,7 @@ struct BoardTableView: View {
                     Label(ordering.ascending ? "Tăng dần" : "Giảm dần", systemImage: ordering.ascending ? "arrow.up" : "arrow.down")
                 }.accessibilityLabel("Đổi chiều sắp xếp").accessibilityValue(ordering.ascending ? "Tăng dần" : "Giảm dần").accessibilityIdentifier("table.sort.direction")
             } footer: {
-                Text("Chỉ đổi cách xem Bảng kê. Thứ tự thẻ trong Kanban được giữ nguyên. Thẻ chưa đặt hạn luôn ở cuối khi xếp theo hạn.")
+                Text(ordering.key == .due ? "Thứ tự xem riêng. Thẻ chưa có hạn ở cuối." : "Thứ tự xem riêng; giữ vị trí Kanban.")
             }
             Section("Kết quả · \(cards.count) thẻ") {
                 if cards.isEmpty { EmptyState(title: "Không có thẻ khớp bộ lọc") }

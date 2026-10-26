@@ -96,11 +96,11 @@ struct CardScreen: View {
         let active = !c.flag("archived") && !s.board.flag("closed") && !c.flag("is_template")
         let permission = ReviewCapabilities(card: c, snapshot: s, review: review, user: state.user ?? Record())
         if c.flag("archived") {
-            Button("Khôi phục thẻ") { run { _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", ["archived": .bool(false)]) } }.buttonStyle(.borderedProminent)
+            Button("Khôi phục thẻ") { run { _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", ["archived": .bool(false)]) } }.buttonStyle(.borderedProminent).tint(actionFill)
         } else if active, c.text("approval_state") == "pending", permission.canDecide {
-            FlowLayout { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy || photoBusy)
+            FlowLayout { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent).tint(actionFill); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy || photoBusy)
         } else if permission.canSubmit {
-            Button("Gửi duyệt") { reviewAction("submit") }.buttonStyle(.borderedProminent).disabled(busy || photoBusy)
+            Button("Gửi duyệt") { reviewAction("submit") }.buttonStyle(.borderedProminent).tint(actionFill).disabled(busy || photoBusy)
         }
     }
     func reviewAction(_ action: String) {
@@ -220,7 +220,7 @@ struct CardScreen: View {
                 }
             }
             TextField("Bình luận · hỗ trợ @username", text: $comment, axis: .vertical).lineLimit(3...8)
-            Button("Gửi bình luận") { let text = comment; run { _ = try await state.mutate("/api/cards/\(resolvedID)/comments", "POST", ["text": .string(text)]); comment = "" } }.buttonStyle(.borderedProminent).disabled(busy || comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Gửi bình luận") { let text = comment; run { _ = try await state.mutate("/api/cards/\(resolvedID)/comments", "POST", ["text": .string(text)]); comment = "" } }.buttonStyle(.borderedProminent).tint(actionFill).disabled(busy || comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
     @ViewBuilder func cardMenu(_ c: Record, _ s: BoardSnapshot) -> some View {

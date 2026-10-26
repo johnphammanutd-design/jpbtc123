@@ -2,7 +2,12 @@ import SwiftUI
 import QuickLook
 import UniformTypeIdentifiers
 
-let brand = Color(red: 0.14, green: 0.37, blue: 0.82)
+let brand = Color(uiColor: UIColor { traits in
+    traits.userInterfaceStyle == .dark
+        ? UIColor(red: 0.49, green: 0.67, blue: 1, alpha: 1)
+        : UIColor(red: 0.14, green: 0.37, blue: 0.82, alpha: 1)
+})
+let actionFill = Color(red: 0.14, green: 0.37, blue: 0.82)
 let canvas = Color(uiColor: .systemGroupedBackground)
 extension Color {
     init(hex: String) {
@@ -45,6 +50,7 @@ struct EditRequest: Identifiable {
     var action: ([String: JSON]) async throws -> Void
 }
 struct EditSheet: View {
+    @ScaledMetric(relativeTo: .body) private var editorHeight = 140
     let request: EditRequest
     @State private var values: [String: JSON]
     @State private var busy = false
@@ -67,7 +73,7 @@ struct EditSheet: View {
                     }), required: f.required)
                     case .time: OptionalTimeField(label: f.label, value: text(f.id)).disabled(values["due_date"]?.string.isEmpty == true)
                     case .secure: SecureField(f.label, text: text(f.id)).textContentType(.newPassword)
-                    case .multiline: Section(f.label) { TextEditor(text: text(f.id)).frame(minHeight: 140) }
+                    case .multiline: Section(f.label) { TextEditor(text: text(f.id)).frame(minHeight: min(editorHeight, 360)) }
                     case .toggle: Toggle(f.label, isOn: flag(f.id))
                     case .choice(let options): Picker(f.label, selection: text(f.id)) { ForEach(options, id: \.0) { Text($0.1).tag($0.0) } }
                     case .multi(let options): Section(f.label) { ForEach(options, id: \.0) { option in

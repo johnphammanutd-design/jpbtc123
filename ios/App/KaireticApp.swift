@@ -59,7 +59,7 @@ struct LoginScreen: View {
                     SecureField("Mật khẩu", text: $password).textContentType(.password).accessibilityIdentifier("login.password")
                 }.padding(20).background(.background, in: RoundedRectangle(cornerRadius: 16))
                 if let error { Text(error).font(.subheadline).foregroundStyle(.red) }
-                Button { signIn() } label: { HStack { Spacer(); if busy { ProgressView().tint(.white) } else { Text("Đăng nhập").fontWeight(.semibold) }; Spacer() }.padding(8) }.buttonStyle(.borderedProminent).controlSize(.large).disabled(busy || username.isEmpty || password.isEmpty).accessibilityIdentifier("login.submit")
+                Button { signIn() } label: { HStack { Spacer(); if busy { ProgressView().tint(.white) } else { Text("Đăng nhập").fontWeight(.semibold) }; Spacer() }.padding(8) }.buttonStyle(.borderedProminent).tint(actionFill).controlSize(.large).disabled(busy || username.isEmpty || password.isEmpty).accessibilityIdentifier("login.submit")
                 Label(state.origin.host ?? "", systemImage: "lock.shield").font(.footnote).foregroundStyle(.secondary)
                 #if DEBUG
                 if state.origin.scheme == "http" { Badge(text: "Môi trường thử nghiệm riêng", color: .orange) }

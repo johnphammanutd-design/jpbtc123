@@ -2,7 +2,7 @@
 
 ## Cập nhật iOS — 26/10/2026
 
-Đợt tiếp theo đã thêm kéo sắp xếp Inbox cá nhân (lưu server), sắp xếp Bảng kê năm trường/hai chiều, nút ẩn bàn phím, ngày native và bố cục thích ứng chữ lớn/nhãn dễ đọc. **30 test Swift/API qua**; Debug Simulator/Release chưa ký build thành công. Đang chờ mở khóa Mac để thử trực tiếp kéo tay nắm, bàn phím phần mềm, chế độ tối và chữ lớn trong Xcode; chưa coi các mục UI này đã nghiệm thu. Chi tiết ở cuối `ios/README.md`.
+Đợt tiếp theo đã thêm kéo sắp xếp Inbox cá nhân (lưu server), sắp xếp Bảng kê năm trường/hai chiều, nút ẩn bàn phím, ngày native và bố cục thích ứng chữ lớn/nhãn dễ đọc. **30 test Swift/API qua**; Debug Simulator/Release chưa ký build thành công. Đã thử trực tiếp trong Xcode: kéo tay nắm Inbox và xác nhận lưu, nhập nhiều dòng/chọn ngày/lưu khi bàn phím mở, ẩn bàn phím, đủ ba kiểu sắp xếp cột, Bảng kê tên/hạn hai chiều, giao diện tối và chữ trợ năng ở các màn chính. Sau thử đã sửa màu nút nền tối, ô soạn tăng theo chữ và thanh công cụ gọn khi chữ lớn. Chưa nghiệm thu mọi màn hình/VoiceOver/iPhone thật. Chi tiết ở cuối `ios/README.md`.
 
 Đã bổ sung tiếp thư viện mẫu trong bảng, sửa nhanh qua bút chì/nhấn giữ, chọn ảnh Photos cho đính kèm và ảnh nền, hiển thị nền ảnh Kanban. **23 test Swift/API qua**; đã thử các thao tác này trong Xcode, gồm tạo thẻ từ mẫu, sửa tên/ngày/giờ/nhãn, tải ảnh Photos lên/xem Quick Look và đổi nền bằng Photos. Ảnh được tối ưu/loại metadata trước khi gửi; dùng dữ liệu demo riêng, không sửa production. Chi tiết và giới hạn nằm ở mục “Hoàn thiện thao tác hằng ngày” trong `ios/README.md`.
 

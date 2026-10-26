@@ -32,7 +32,7 @@ TestFlight và phát hành có chữ ký cho nhiều nhân viên cần chuẩn b
 
 Đây là bản phát triển native đầu tiên, chưa được xác nhận có trải nghiệm/độ hoàn thiện ngang web. Các chức năng trên mô tả mã nguồn hiện có, không phải biên bản nghiệm thu mọi màn hình.
 
-1. Đã kiểm tra các luồng cơ bản trên iPhone 18 Pro mô phỏng (iOS 27.0) qua Xcode/Device Hub: đăng nhập nhân viên và leader, Tổng quan, bảng/cột, thẻ, gửi duyệt, leader duyệt, chuyển kỳ lặp và menu quản lý bảng. Cần kiểm tra thêm bàn phím/cuộn ở mọi biểu mẫu, kéo thả, Dynamic Type, VoiceOver, chế độ tối, màn hình nhỏ/lớn, quyền tệp/ảnh và chuyển app; chưa nghiệm thu toàn bộ chức năng hay chạy trên iPhone thật.
+1. Đã kiểm tra các luồng cơ bản trên iPhone 18 Pro mô phỏng (iOS 27.0) qua Xcode/Device Hub: đăng nhập nhân viên và leader, Tổng quan, bảng/cột, thẻ, gửi duyệt, leader duyệt, chuyển kỳ lặp và menu quản lý bảng. Đợt Inbox ở cuối tài liệu đã thử kéo tay nắm, bàn phím phần mềm, một số biểu mẫu, chế độ tối và cỡ chữ trợ năng. Cần kiểm tra tiếp các biểu mẫu còn lại, kéo thả thẻ, VoiceOver, mọi cỡ màn hình, quyền tệp/ảnh và chuyển app; chưa nghiệm thu toàn bộ chức năng hay chạy trên iPhone thật.
 2. Thông báo trong app có dữ liệu thật; **push khi app đóng chưa có**. Backend hiện có Web Push, cần thêm APNs cho native và cấu hình Apple để hoàn thành mục này. Nhắc hạn không được hứa sẽ hiện ở nền iOS khi chưa làm bước đó.
 3. Cần mạng để xem/lưu, chưa có bộ nhớ đệm ngoại tuyến hoặc hàng đợi đồng bộ.
 4. Chia sẻ dùng liên kết web `#c/ID`; app cũng xử lý `kairetic://card/ID`. Universal Links HTTPS chưa được cấu hình.
@@ -116,16 +116,16 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Gắn bảng với team, cột chờ duyệt/hoàn thành/cần sửa | Có mã | API luồng duyệt; cần thử đổi cấu hình trực tiếp trên UI |
 | Kanban vuốt/chọn cột | Có | UI đã thao tác |
 | Kéo thả thẻ trong/giữa cột | Có mã | Test tính vị trí; chưa kiểm chứng cử chỉ kéo trên bản mới |
-| Lịch và bảng kê | Đã thêm sắp xếp Bảng kê | Năm trường/hai chiều có test logic; cần UI đợt này và kiểm tra lịch |
+| Lịch và bảng kê | Đã thêm sắp xếp Bảng kê | UI đổi tên/hạn, tăng/giảm dần; năm trường có test logic; lịch vẫn cần nghiệm thu thêm |
 | Lọc từ khóa/người/nhãn/trạng thái/hạn/hoạt động | Có | Test logic nhiều điều kiện; UI đã mở bộ lọc, chọn nhân viên và nhận đúng 1/1 thẻ; các tổ hợp khác chưa thử UI |
 | Thu gọn/mở cột, tất cả cột | Có mã | Chưa nghiệm thu thao tác tất cả cột |
 | Tạo/đổi tên/sắp thứ tự cột, WIP, màu | Có mã | Chưa thử UI toàn bộ |
-| Sắp xếp theo tên/hạn/mới tạo | Có mã | API hiện có; chưa thử từng lựa chọn native |
+| Sắp xếp theo tên/hạn/mới tạo | Có | Đã thử đủ ba lựa chọn menu native và thấy thứ tự đổi; API kiểm tra lưu và chặn nhân viên |
 | Sao chép cột/chuyển tất cả/lưu trữ tất cả thẻ | Có mã | Cần UI kiểm tra hàng loạt và quyền |
 | Tạo/sửa thẻ và mô tả Markdown | Có | UI xem; API tạo/sửa; Markdown mới hiển thị dạng hỗ trợ của SwiftUI, chưa có trình soạn thảo định dạng |
 | Nhiều người phụ trách và người duyệt | Có | API kiểm tra giao việc, tự tham gia/rời, người nhận phải có quyền; UI xem người |
 | Nhãn của thẻ và quản lý nhãn | Có mã | API/thẻ mẫu; chưa thử thêm/sửa/xóa nhãn native |
-| Ngày bắt đầu/hạn/giờ/lặp/nhắc | Có | API lặp cuối tháng/reset checklist; UI đã thấy kỳ mới; ngày/giờ trong biểu mẫu đã đổi sang bộ chọn native ở đợt Inbox; cần nghiệm thu UI |
+| Ngày bắt đầu/hạn/giờ/lặp/nhắc | Có | API lặp cuối tháng/reset checklist; UI đã thấy kỳ mới; UI đã mở bộ chọn ngày/giờ và gỡ hạn cũng gỡ giờ; thay đổi thử được hủy, không đổi kỳ lặp của thẻ |
 | Gửi duyệt → yêu cầu sửa → gửi lại → duyệt | Có | API đủ hai tầng; UI nhân viên→leader ở đợt đầu, giám đốc yêu cầu leader sửa ở đợt này; UI chặn ghi chú rỗng |
 | Chặn tự duyệt, người khác duyệt thay không đúng quyền | Có | API âm tính + chính sách nút native |
 | Sửa nội dung mở lại việc đã gửi duyệt | Có | API xác nhận; bình luận không làm mất trạng thái chờ duyệt |
@@ -150,8 +150,8 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Automation theo cột/lịch/hạn/nút | Có mã | Bộ tạo hành động cơ bản; chưa UI thử từng loại và mọi tổ hợp |
 | AI tóm tắt/mô tả/checklist | Có mã | Chưa gọi nhà cung cấp trong kiểm thử, không phát sinh chi phí AI |
 | Tìm kiếm toàn cục | Có | API không lộ thẻ sau thu hồi quyền; còn UI tìm kiếm |
-| Inbox và chuyển thành thẻ | Có | API thực; UI cần thử sửa/ngày/chuyển |
-| Kéo thả sắp xếp Inbox | Đã thêm | Tay nắm native, menu lên đầu/cuối, lưu server; API giữ thứ tự sau đăng nhập lại và chặn tài khoản khác. UI đợt này chờ mở khóa Mac |
+| Inbox và chuyển thành thẻ | Có | UI sửa nhiều dòng, chọn ngày và lưu khi bàn phím mở; chuyển thành thẻ có API, chưa thử UI đợt này |
+| Kéo thả sắp xếp Inbox | Đã thêm | UI đã kéo mục cuối lên đầu; API xác nhận thứ tự lưu, đăng nhập lại giữ thứ tự và chặn tài khoản khác. Menu và hành động trợ năng có mã, chưa thử bằng VoiceOver |
 | Planner cá nhân và lịch tự động từ hạn | Có | API thực, phân biệt lịch cá nhân với lịch đến hạn; cần UI đổi ngày |
 | Việc của tôi, đã hoàn thành và hơn 100 việc | Đã sửa | Test 121 thẻ; UI nhân viên chuyển Đang làm/Đã xong, thấy đúng thẻ demo tương ứng |
 | Thông báo trong app | Có | API và ánh xạ tiếng Việt; cần UI mở thông báo/đánh dấu đã đọc |
@@ -219,12 +219,15 @@ Chưa thử trên iPhone thật, iCloud Photos chậm, ảnh 100 MB, hết dung 
 - **Bảng kê:** xếp theo cột, tên thẻ, người phụ trách (kể cả thẻ đối xứng), hạn gồm giờ hoặc hoàn thành; tăng/giảm dần. Thẻ chưa có hạn luôn ở cuối khi xếp theo hạn. Tiêu chí tên/người/cột dùng so sánh tiếng Việt và số tự nhiên. Đây là thứ tự xem riêng, không ghi vị trí Kanban. Các trường bằng nhau giữ thứ tự gốc.
 - **Menu cột:** giữ ba kiểu sắp xếp đang có trên web: tên A→Z, hạn sớm trước, mới tạo trước. Ghi rõ áp dụng toàn bộ thẻ, kể cả thẻ đang bị lọc ẩn. Chỉ quản lý được dùng API sắp xếp toàn cột.
 - **Nhập liệu:** có nút Ẩn bàn phím trên các màn nhập và vuốt cuộn để đóng bàn phím; ngày/giờ tùy chọn trong biểu mẫu dùng bộ chọn native, có thể gỡ; gỡ hạn cũng gỡ giờ, giờ chỉ bật khi đã có ngày. Planner bắt buộc chọn ngày.
-- **Chữ lớn/màu:** nhãn và cụm nút tự xuống hàng, nhãn dùng chữ theo màu hệ thống thay vì màu vàng/nhạt khó đọc. Bộ chọn phân đoạn chuyển thành menu ở cỡ chữ trợ năng, thẻ và Bảng kê cho chữ xuống dòng, Tổng quan chuyển thành một cột.
+- **Chữ lớn/màu:** nhãn và cụm nút tự xuống hàng, nhãn dùng chữ theo màu hệ thống thay vì màu vàng/nhạt khó đọc. Bộ chọn phân đoạn chuyển thành menu ở cỡ chữ trợ năng, thẻ và Bảng kê cho chữ xuống dòng, Tổng quan chuyển thành một cột. Sau thử UI, đã chỉnh màu nút/liên kết cho nền tối, tăng chiều cao ô soạn theo chữ và gom bộ lọc/cột/tạo thẻ vào menu ở chữ trợ năng để nhường diện tích cho thẻ; giữ tên cách xem trên một dòng.
 
 ### Đã kiểm chứng
 
 - **30 test Swift/API qua, 0 lỗi**, gồm 4 bài tích hợp backend demo thực. Các test mới kiểm tra kéo lên/xuống/no-op, thay đổi danh sách từ máy khác, xóa đích kéo, vị trí trùng và hết độ chính xác; đủ năm trường Bảng kê, hai chiều, trường bằng nhau, hạn không đặt và người phụ trách thẻ đối xứng.
 - API thực: thứ tự Inbox được giữ khi đăng nhập lại; tài khoản khác không nhìn thấy/sửa được mục Inbox đó. Ba kiểu sắp xếp cột lưu đúng thứ tự và không thay trạng thái hoàn thành; nhân viên bị chặn sắp xếp toàn cột.
 - Debug Simulator và Release iPhoneOS arm64 chưa ký đã build thành công bằng xcodebuild. Bài kiểm tra Photos nay dùng bảng QA riêng để không thay ảnh nền demo đang dùng.
-- **Nghiệm thu trực tiếp trong Xcode đang chờ mở khóa Mac:** chưa đánh dấu đã thử kéo tay nắm, bàn phím phần mềm, giao diện tối và cỡ chữ trợ năng cho đợt này. Không dùng kết quả build/test logic để thay thế kiểm chứng các màn hình đó.
-- Dữ liệu kiểm thử chỉ ở localhost:3101. Chưa kiểm tra thiết bị thật, VoiceOver đọc toàn luồng hoặc mọi menu/mọi kích thước màn hình.
+- **UI Xcode/Device Hub, iPhone 18 Pro / iOS 27.0:** đã kéo mục Inbox cuối lên đầu bằng tay nắm. Rời màn hình/chạy lại app vẫn đúng thứ tự; GET API xác nhận các mục 18 → 16 → 17, vị trí 0 → 1024 → 2048.
+- **Bàn phím/biểu mẫu:** bật bàn phím iPhone trên màn hình, dùng nút ẩn bàn phím thành công; nhập/sửa nhiều dòng và bấm Lưu khi bàn phím mở, thấy nội dung và ngày 27/10 được lưu. Mở bộ chọn giờ trên thẻ, gỡ ngày hạn làm giờ về tắt và khóa chọn giờ; Hủy rồi xác nhận ngày/giờ gốc vẫn giữ nguyên.
+- **Chế độ tối/chữ lớn:** thử Inbox, biểu mẫu soạn/sửa, Tổng quan, Task, Kanban, Bảng kê và bộ lọc với giao diện tối; tăng 6 mức chữ từ cỡ ban đầu tới cỡ trợ năng. Đã cuộn tới các trường/nút, xác nhận menu thay bộ chọn phân đoạn, nhãn xuống dòng và Tổng quan một cột. Thử lại các chỉnh sửa màu, ô soạn và thanh công cụ trực tiếp trong Xcode. Sau thử đã để Simulator ở giao diện sáng và cỡ chữ ban đầu.
+- **Sắp xếp native:** đã chọn đủ tên A→Z, hạn sớm trước, mới tạo trước từ menu cột và thấy thẻ đổi thứ tự. Bảng kê mở đủ năm tiêu chí, đã đổi tên/hạn và hai chiều, xác nhận thẻ đầu danh sách thay đổi theo lựa chọn. Các tiêu chí còn lại có test logic, chưa thao tác UI mọi tổ hợp.
+- Dữ liệu kiểm thử chỉ ở localhost:3101. Chưa kiểm tra thiết bị thật, VoiceOver đọc toàn luồng, mức chữ trợ năng lớn nhất hoặc mọi menu/mọi kích thước màn hình. Không coi các màn đã thử là nghiệm thu đầy đủ toàn app.

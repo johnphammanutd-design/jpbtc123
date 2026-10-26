@@ -22,15 +22,32 @@ struct BoardScreen: View {
             if let s = snapshot {
                 VStack(spacing: 0) {
                     VStack(spacing: 10) {
-                        Group { if typeSize.isAccessibilitySize { viewPicker.pickerStyle(.menu) } else { viewPicker.pickerStyle(.segmented) } }
-                        FlowLayout {
-                            Button { showFilters = true } label: { Label(filter.active ? "Đang lọc" : "Bộ lọc", systemImage: filter.active ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") }
-                            Menu { Button("Thu gọn tất cả cột") { collapsed = Set(s.lists.map(\.id)) }; Button("Mở rộng tất cả cột") { collapsed = [] } } label: { Image(systemName: "rectangle.compress.vertical").accessibilityLabel("Thu gọn hoặc mở rộng cột") }
-                            if !s.board.flag("closed") { Menu { Button("Tạo thẻ trống") { createCard(s) }; Button("Tạo thẻ từ mẫu") { templateListID = selectedList; showTemplates = true } } label: { Label("Thẻ mới", systemImage: "plus") } }
-                        }.font(.subheadline).padding(.vertical, 3)
+                        if typeSize.isAccessibilitySize {
+                            HStack {
+                                viewPicker.pickerStyle(.menu).fixedSize(horizontal: true, vertical: false)
+                                Spacer(minLength: 8)
+                                Menu {
+                                    Button(filter.active ? "Bộ lọc · đang áp dụng" : "Bộ lọc") { showFilters = true }
+                                    Button("Thu gọn tất cả cột") { collapsed = Set(s.lists.map(\.id)) }
+                                    Button("Mở rộng tất cả cột") { collapsed = [] }
+                                    if !s.board.flag("closed") {
+                                        Button("Tạo thẻ trống") { createCard(s) }
+                                        Button("Tạo thẻ từ mẫu") { templateListID = selectedList; showTemplates = true }
+                                    }
+                                } label: { Image(systemName: filter.active ? "line.3.horizontal.decrease.circle.fill" : "ellipsis.circle").font(.title2).frame(minWidth: 44, minHeight: 44) }
+                                .accessibilityLabel("Bộ lọc, cột và tạo thẻ").accessibilityIdentifier("board.accessible.actions")
+                            }
+                        } else {
+                            viewPicker.pickerStyle(.segmented)
+                            FlowLayout {
+                                Button { showFilters = true } label: { Label(filter.active ? "Đang lọc" : "Bộ lọc", systemImage: filter.active ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") }
+                                Menu { Button("Thu gọn tất cả cột") { collapsed = Set(s.lists.map(\.id)) }; Button("Mở rộng tất cả cột") { collapsed = [] } } label: { Image(systemName: "rectangle.compress.vertical").accessibilityLabel("Thu gọn hoặc mở rộng cột") }
+                                if !s.board.flag("closed") { Menu { Button("Tạo thẻ trống") { createCard(s) }; Button("Tạo thẻ từ mẫu") { templateListID = selectedList; showTemplates = true } } label: { Label("Thẻ mới", systemImage: "plus") } }
+                            }.font(.subheadline).padding(.vertical, 3)
+                        }
                         if let error { Text(error).font(.caption).foregroundStyle(.red) }
                         if s.board.flag("closed") { Badge(text: "Bảng đã đóng", color: .orange) }
-                    }.padding().background(.background)
+                    }.padding().frame(maxWidth: .infinity).background(.background)
                     if view == "Kanban" {
                         if s.lists.isEmpty { EmptyState(title: "Bảng chưa có cột", symbol: "rectangle.split.3x1") }
                         else {
