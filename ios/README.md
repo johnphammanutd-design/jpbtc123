@@ -10,7 +10,9 @@ Bản Release cố định máy chủ HTTPS của công ty. Token nằm trong Ke
 
 Để thử trên iPhone cá nhân, đăng nhập Apple Account trong **Xcode → Settings → Accounts**, chọn **Personal Team** ở **Signing & Capabilities**, kết nối iPhone, chọn thiết bị rồi Run. Không cần gửi thông tin đăng nhập qua chat. Tài khoản miễn phí cần cài lại định kỳ; tài liệu Apple hiện nêu thời hạn provisioning 7 ngày: https://developer.apple.com/help/account/basics/about-your-developer-account.
 
-TestFlight và phát hành có chữ ký cho nhiều nhân viên cần chuẩn bị Apple Developer Program và cấu hình phân phối. Dự án chưa có Development Team, chứng chỉ, provisioning profile hay khóa APNs; không coi tệp `.app` chưa ký là bản cài được lên điện thoại.
+Máy Mac phát triển đã cấu hình Personal Team và cài bản ký lên iPhone cá nhân; xem phạm vi kiểm tra ở cuối tài liệu. Để giữ lựa chọn Team khi tái tạo project, sao chép `Signing.local.xcconfig.example` thành `Signing.local.xcconfig`, điền Team ID của mình rồi mở lại project. Tệp local được Git bỏ qua; chứng chỉ/khóa riêng vẫn do Xcode và Keychain quản lý. Không đưa chứng chỉ, khóa riêng hoặc provisioning profile vào kho mã.
+
+TestFlight và phát hành có chữ ký cho nhiều nhân viên cần chuẩn bị Apple Developer Program và cấu hình phân phối. Chưa có cấu hình TestFlight hay khóa APNs; bản cài Personal Team hiện tại phục vụ thử trên thiết bị cá nhân.
 
 ## Các màn hình đã có mã nguồn
 
@@ -32,7 +34,7 @@ TestFlight và phát hành có chữ ký cho nhiều nhân viên cần chuẩn b
 
 Đây là bản phát triển native đầu tiên, chưa được xác nhận có trải nghiệm/độ hoàn thiện ngang web. Các chức năng trên mô tả mã nguồn hiện có, không phải biên bản nghiệm thu mọi màn hình.
 
-1. Đã kiểm tra các luồng cơ bản trên iPhone 18 Pro mô phỏng (iOS 27.0) qua Xcode/Device Hub: đăng nhập nhân viên và leader, Tổng quan, bảng/cột, thẻ, gửi duyệt, leader duyệt, chuyển kỳ lặp và menu quản lý bảng. Đợt Inbox ở cuối tài liệu đã thử kéo tay nắm, bàn phím phần mềm, một số biểu mẫu, chế độ tối và cỡ chữ trợ năng. Cần kiểm tra tiếp các biểu mẫu còn lại, kéo thả thẻ, VoiceOver, mọi cỡ màn hình, quyền tệp/ảnh và chuyển app; chưa nghiệm thu toàn bộ chức năng hay chạy trên iPhone thật.
+1. Đã kiểm tra các luồng cơ bản trên iPhone 18 Pro mô phỏng (iOS 27.0) qua Xcode/Device Hub: đăng nhập nhân viên và leader, Tổng quan, bảng/cột, thẻ, gửi duyệt, leader duyệt, chuyển kỳ lặp và menu quản lý bảng. Đợt Inbox ở cuối tài liệu đã thử kéo tay nắm, bàn phím phần mềm, một số biểu mẫu, chế độ tối và cỡ chữ trợ năng. Đã cài/chạy và đăng nhập hệ thống công ty trên iPhone thật, phạm vi ghi ở cuối tài liệu. Cần kiểm tra tiếp các biểu mẫu còn lại, kéo thả thẻ, VoiceOver, mọi cỡ màn hình, quyền tệp/ảnh và chuyển app; chưa nghiệm thu toàn bộ chức năng.
 2. Thông báo trong app có dữ liệu thật; **push khi app đóng chưa có**. Backend hiện có Web Push, cần thêm APNs cho native và cấu hình Apple để hoàn thành mục này. Nhắc hạn không được hứa sẽ hiện ở nền iOS khi chưa làm bước đó.
 3. Cần mạng để xem/lưu, chưa có bộ nhớ đệm ngoại tuyến hoặc hàng đợi đồng bộ.
 4. Chia sẻ dùng liên kết web `#c/ID`; app cũng xử lý `kairetic://card/ID`. Universal Links HTTPS chưa được cấu hình.
@@ -59,7 +61,7 @@ xcodebuild -project Kairetic.xcodeproj -scheme Kairetic -configuration Debug \
   -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
 ```
 
-`generate-project.py` tái tạo project/plist/scheme từ nguồn; không chứa tài khoản ký. Chạy lại generator sẽ thay các thay đổi cấu hình đã chỉnh trực tiếp trong project; lưu lựa chọn Development Team riêng trước khi chạy lại.
+`generate-project.py` tái tạo project/plist/scheme từ nguồn. Debug và Release cùng đọc `Signing.xcconfig`, tệp này tùy chọn nạp `Signing.local.xcconfig`; generator không ghi đè tệp local. Chạy lại sẽ thay các thay đổi cấu hình đã chỉnh trực tiếp trong project, vì vậy lưu lựa chọn Development Team trong tệp local nếu muốn giữ. Khi không có tệp local, vẫn build Simulator bình thường và chọn Team trong Xcode khi cần cài lên thiết bị.
 
 Nếu môi trường sandbox không cho Swift mở sandbox con cho macro hệ thống, lệnh build dùng thêm `OTHER_SWIFT_FLAGS=-disable-sandbox`. Cờ này chỉ phục vụ trình biên dịch trong môi trường chạy hiện tại; không nới ATS hay quyền của app.
 
@@ -159,7 +161,7 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Liên kết chia sẻ thẻ | Có một phần | Web link và custom scheme; chưa Universal Links HTTPS |
 | Push khi app đóng | Chưa có trên native | Web dùng Web Push; cần thêm APNs/Apple để phát native |
 | Offline/đồng bộ lại | Chưa có | Không có hàng đợi ghi; API web hiện tại cũng không cung cấp đồng bộ xung đột |
-| iPhone thật/TestFlight | Chưa thực hiện | Chưa có chứng chỉ/phân phối; Simulator không thay thế thử thiết bị thật |
+| iPhone thật/TestFlight | Đã cài/chạy iPhone cá nhân | Personal Team, đăng nhập hệ thống thật; TestFlight chưa cấu hình. Xem đợt thử thiết bị ở cuối tài liệu |
 | Giao diện tối/chữ lớn/VoiceOver/xoay ngang | Chưa nghiệm thu | Không suy từ build thành công rằng đã đạt khả năng tiếp cận |
 
 ### Kiểm thử ba vai trò bằng API native
@@ -267,3 +269,13 @@ Dùng iPhone 18 Pro / iOS 27.0 và ba tài khoản demo, toàn bộ thao tác gh
 - Thông báo giám đốc hiển thị lần gửi của leader là `26/10/2026 19:54`; nhật ký/lịch sử thẻ nhân viên hiện các mốc 19:58 → 20:01 → 20:03 → 20:06 theo giờ công ty. Ghi chú yêu cầu sửa `QA-ADD-RESULT-01` vẫn hiện đầy đủ.
 - Mở Tìm kiếm đã thấy ô nhập ngay, không kéo xuống; nhập tên thẻ đã duyệt vẫn tìm và mở được.
 - App đang đăng nhập giám đốc demo, ở bảng `[DEMO E2E] QA-ROLE-FLOW-01` → cột Hoàn thành với đủ hai công việc, để người dùng xem lại. Giao diện sáng và cỡ chữ thông thường.
+
+## Cài và mở trên iPhone thật — 26/10/2026
+
+- **iPhone 16 Pro Max / iOS 27.0.1**, Kairetic **0.1.0 (1)**, scheme **Kairetic**, máy chủ `https://task.kairetic.com`.
+- Người dùng tự đăng nhập Apple Account, bật Developer Mode, đồng ý tạo chứng chỉ/hồ sơ và tự tin cậy chứng chỉ trên iPhone. Xcode tạo Apple Development và managed provisioning profile trong Personal Team, build/ký/cài thành công. Sau bước tin cậy, Xcode báo **Running Kairetic on iPhone** và Device Hub hiển thị màn hình đăng nhập của app.
+- Người dùng tự đăng nhập tài khoản công ty trong app. Đã thấy Tổng quan có thống kê, Task có danh sách bảng theo tài khoản, mở một bảng sản xuất ở Kanban và mở chi tiết thẻ có mô tả/checklist/thành viên/ngày/nhãn. Việc của tôi tải xong và hiện trạng thái Không có công việc cho tài khoản đang thử. Không suy ra số việc của toàn công ty từ màn này.
+- Những thao tác trên hệ thống thật chỉ đăng nhập và xem; không tạo thẻ thử, sửa nội dung, giao việc, đổi quyền hoặc gửi/duyệt công việc production. Luồng ghi qua ba vai trò trước đó vẫn là nghiệm thu trên backend demo, chưa thử toàn bộ trên iPhone thật.
+- Đã xác minh chữ ký của `.app` bằng `codesign --verify --strict`. Metadata trong profile kèm app có thiết bị đang thử và hạn **02/11/2026 21:57:54 (Asia/Ho_Chi_Minh)**; sau hạn cần build/cài lại bằng Xcode với Personal Team, không phải thời hạn của tài khoản công ty hay dữ liệu trên server.
+- Lựa chọn Team của Mac này nằm trong `Signing.local.xcconfig`, được Git bỏ qua. Project/generator đọc cấu hình này cho cả Debug/Release. `plutil` kiểm tra project hợp lệ; `xcodebuild -showBuildSettings` xác nhận cả hai cấu hình đọc Team và giữ bundle `com.kairetic.task`, ký Automatic. Không lưu Apple Account, UDID, khóa riêng hoặc provisioning profile trong kho mã.
+- Chưa cấu hình TestFlight/APNs, chưa thử mọi chức năng, ảnh/tệp thực, mạng yếu hoặc VoiceOver trên thiết bị này. Đợt cài thiết bị chỉ đổi cấu hình ký/tài liệu, không đổi logic nghiệp vụ; kết quả 36 test Swift/API của bản trước vẫn được ghi ở phần trên.

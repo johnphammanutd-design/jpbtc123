@@ -7,5 +7,6 @@ ios/build*/
 ios/DerivedData/
 *.xcuserstate
 xcuserdata/
+ios/Signing.local.xcconfig
 
 .DS_Store

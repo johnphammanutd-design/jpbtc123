@@ -16,12 +16,14 @@ files.append(asset)
 assetBuild=add('assetBuild','{isa = PBXBuildFile; fileRef = '+asset+';}')
 resources=add('resources','{isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ('+assetBuild+'); runOnlyForDeploymentPostprocessing = 0;}')
 frameworks=add('frameworks','{isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;}')
+signing=add('signing','{isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>";}')
+files.append(signing)
 group=add('group','{isa = PBXGroup; children = ('+','.join(files+[product])+'); sourceTree = "<group>";}')
 projectConfigs=[]; targetConfigs=[]
 for mode in ['Debug','Release']:
     projectConfigs.append(add('project'+mode, '{isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SWIFT_VERSION = 5.0; SWIFT_STRICT_CONCURRENCY = complete;}; name = '+mode+';}'))
     settings={'PRODUCT_BUNDLE_IDENTIFIER':'com.kairetic.task','PRODUCT_NAME':'Kairetic','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','INFOPLIST_FILE':mode+'Info.plist','GENERATE_INFOPLIST_FILE':'NO','TARGETED_DEVICE_FAMILY':'1,2','CODE_SIGN_STYLE':'Automatic','MARKETING_VERSION':'0.1.0','CURRENT_PROJECT_VERSION':'1','SWIFT_OPTIMIZATION_LEVEL':'-Onone' if mode=='Debug' else '-O','SWIFT_ACTIVE_COMPILATION_CONDITIONS':'DEBUG' if mode=='Debug' else '', 'ENABLE_PREVIEWS':'YES', 'SUPPORTED_PLATFORMS':'iphoneos iphonesimulator', 'SUPPORTS_MACCATALYST':'NO'}
-    targetConfigs.append(add('target'+mode,'{isa = XCBuildConfiguration; buildSettings = {'+' '.join(k+' = "'+v+'";' for k,v in settings.items())+'}; name = '+mode+';}'))
+    targetConfigs.append(add('target'+mode,'{isa = XCBuildConfiguration; baseConfigurationReference = '+signing+'; buildSettings = {'+' '.join(k+' = "'+v+'";' for k,v in settings.items())+'}; name = '+mode+';}'))
 pc=add('projectConfigs','{isa = XCConfigurationList; buildConfigurations = ('+','.join(projectConfigs)+'); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;}')
 tc=add('targetConfigs','{isa = XCConfigurationList; buildConfigurations = ('+','.join(targetConfigs)+'); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;}')
 target=add('target','{isa = PBXNativeTarget; buildConfigurationList = '+tc+'; buildPhases = ('+','.join([sources,frameworks,resources])+'); buildRules = (); dependencies = (); name = Kairetic; productName = Kairetic; productReference = '+product+'; productType = "com.apple.product-type.application";}')
