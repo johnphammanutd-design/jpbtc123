@@ -303,3 +303,11 @@ Trước sửa, chạm thông báo trên iPhone đánh dấu đã đọc nhưng 
 - Không thêm test mô phỏng cử chỉ bằng logic Foundation. Kiểm chứng bản sửa bằng build và thao tác thực trên thiết bị; bộ 36 test trước đó không chạy lại trong đợt chỉ sửa điều hướng này.
 
 Đợt này kiểm tra **hai phía nhân viên iPhone và quản trị web**, chưa thay thế nghiệm thu mọi vai trò/mọi thao tác trên iPhone. Không thay đổi backend production, không thêm APNs/offline/TestFlight. Bảng thử: `https://task.kairetic.com/#b/7`; thẻ thử: `https://task.kairetic.com/#c/29` (vẫn yêu cầu đăng nhập và quyền truy cập).
+
+## Chuẩn bị kiểm tra độ ổn định — 26/10/2026
+
+- Tạo riêng **thẻ QA số 30** trong bảng QA số 7, giao cùng tài khoản nhân viên trên iPhone, mô tả có mã `QA-WEB-02`. Thẻ đã duyệt số 29 giữ nguyên. Đính kèm `qa-iphone-access.txt`, chỉ chứa nội dung giả lập, để thử tải tệp và thu hồi quyền. Web báo tải lên thành công; GET URL tệp không có phiên bị chặn **HTTP 401**.
+- Xcode đã khởi động lại riêng app trên iPhone; màn Tổng quan trở lại với phiên công ty đã khôi phục, không yêu cầu nhập lại mật khẩu. Điều này xác nhận khôi phục phiên sau lần chạy lại đó, chưa xác nhận mọi trường hợp chuyển nền/mất mạng.
+- Thêm **2 test API qua URLSession với URLProtocol giả lập**, đều qua: POST gặp không có mạng / mất kết nối / timeout / hủy phải trả lỗi và chỉ phát một request; tải tệp nhận HTTP 403 phải trả lỗi quyền, không trả nội dung lỗi làm dữ liệu xem trước. Registry của stub tách theo đường dẫn UUID và có khóa để không lẫn giữa các tình huống. Các test này không kết nối production và không thay thế thử mất mạng trên iPhone thật.
+- Kiểm thử điều khiển thiết bị đang dừng ở kết nối: Device Hub nhận được hình nhưng các lần chạm không chuyển tab; nối lại phiên hiển thị và chạy lại app vẫn chưa giải quyết. Phản chiếu iPhone yêu cầu khóa điện thoại và bật Wi-Fi trên Mac, trong khi Mac đang dùng Ethernet và Wi-Fi tắt. Chưa thay cài đặt Wi-Fi khi chưa được người dùng đồng ý.
+- **Chưa nghiệm thu trong đợt này:** đồng bộ hai chiều khi app đang mở, lưu khi mất mạng, thu hồi/khôi phục quyền bảng và tệp, chuyển nền/mở lại. Chưa thực hiện thu hồi quyền của bảng QA; quyền bảng cũ không được sửa. Thẻ 30 và tệp chỉ là dữ liệu chuẩn bị cho các bước còn lại.
