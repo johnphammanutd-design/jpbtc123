@@ -144,7 +144,7 @@ struct ActivityList: View {
         ForEach(rows) { row in VStack(alignment: .leading, spacing: 5) {
             Text(row.text("user_name").isEmpty ? row.text("author") : row.text("user_name")).font(.subheadline.bold())
             Text(activityText(row)).font(.subheadline)
-            Text(row.text("created_at")).font(.caption).foregroundStyle(.secondary)
+            Text(CompanyClock.displayTimestamp(row.text("created_at"))).font(.caption).foregroundStyle(.secondary)
         }.padding(.vertical, 5) }
     }
     func activityText(_ r: Record) -> String { EventText.activity(r) }

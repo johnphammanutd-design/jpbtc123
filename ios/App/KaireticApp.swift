@@ -165,7 +165,7 @@ struct NotificationsScreen: View {
                 NavigationLink { CardScreen(cardID: n.number("card_id")) } label: { VStack(alignment: .leading, spacing: 8) {
                     HStack { if !n.flag("read") { Circle().fill(brand).frame(width: 7, height: 7) }; Text(n.text("card_title")).fontWeight(n.flag("read") ? .regular : .semibold) }
                     Text(notificationText(n)).font(.subheadline).foregroundStyle(.secondary)
-                    Text(n.text("created_at")).font(.caption).foregroundStyle(.secondary)
+                    Text(CompanyClock.displayTimestamp(n.text("created_at"))).font(.caption).foregroundStyle(.secondary)
                 }.padding(.vertical, 5) }.simultaneousGesture(TapGesture().onEnded { state.handle { _ = try await state.mutate("/api/notifications/read", "POST", ["ids": .array([.id(n.id)])]) } })
             }
         }.navigationTitle("Thông báo").toolbar { Button("Đọc hết") { state.handle { _ = try await state.mutate("/api/notifications/read") } }.disabled(state.unread == 0) }
@@ -181,7 +181,7 @@ struct SearchScreen: View {
     @State private var busy = false
     var body: some View {
         List { if busy { ProgressView() }; if let error { Text(error).foregroundStyle(.red) }; ForEach(results) { c in NavigationLink { CardScreen(cardID: c.id) } label: { CardTile(card: c) } }; if results.isEmpty && !busy { EmptyState(title: query.isEmpty ? "Tìm trong các bảng được cấp quyền" : "Chưa tìm thấy công việc", symbol: "magnifyingglass") } }
-        .navigationTitle("Tìm kiếm").searchable(text: $query, prompt: "Tên hoặc nội dung công việc").onSubmit(of: .search) { search() }
+        .navigationTitle("Tìm kiếm").searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Tên hoặc nội dung công việc").onSubmit(of: .search) { search() }
     }
     func search() { busy = true; error = nil; Task { defer { busy = false }; do { let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&+?=#"))) ?? ""; results = try await state.call("/api/search?q=\(q)")["cards"].rows } catch { self.error = error.localizedDescription } } }
 }

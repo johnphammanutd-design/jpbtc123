@@ -19,6 +19,7 @@ struct CardScreen: View {
     @State private var tab = "Nội dung"
     @State private var edit: EditRequest?
     @State private var destinationRequest: DestinationRequest?
+    @State private var assignment: AssignmentRequest?
     @State private var comment = ""
     @State private var busy = false
     @State private var importing = false
@@ -45,7 +46,7 @@ struct CardScreen: View {
                         }
                         Group { if typeSize.isAccessibilitySize { sectionPicker.pickerStyle(.menu) } else { sectionPicker.pickerStyle(.segmented) } }.padding(.horizontal)
                         if tab == "Trao đổi" { commentsView(c, s) }
-                        else if tab == "Hoạt động" { Surface { ActivityList(rows: activity); if activity.isEmpty { EmptyState(title: "Chưa có hoạt động") }; Divider(); Text("Lịch sử duyệt").font(.headline); ForEach(review["events"].rows) { e in VStack(alignment: .leading, spacing: 5) { Text(e.text("author") + " · " + (["submit":"Gửi duyệt", "approve":"Duyệt hoàn thành", "request_changes":"Yêu cầu chỉnh sửa"][e.text("action")] ?? e.text("action"))).font(.subheadline.bold()); Text(e.text("note")); Text(e.text("created_at")).font(.caption).foregroundStyle(.secondary) } } } }
+                        else if tab == "Hoạt động" { Surface { ActivityList(rows: activity); if activity.isEmpty { EmptyState(title: "Chưa có hoạt động") }; Divider(); Text("Lịch sử duyệt").font(.headline); ForEach(review["events"].rows) { e in VStack(alignment: .leading, spacing: 5) { Text(e.text("author") + " · " + (["submit":"Gửi duyệt", "approve":"Duyệt hoàn thành", "request_changes":"Yêu cầu chỉnh sửa"][e.text("action")] ?? e.text("action"))).font(.subheadline.bold()); Text(e.text("note")); Text(CompanyClock.displayTimestamp(e.text("created_at"))).font(.caption).foregroundStyle(.secondary) } } } }
                         else { content(c, s) }
                     }.padding(.vertical)
                 }.background(canvas).inputSupport().refreshable { await reload() }
@@ -56,6 +57,7 @@ struct CardScreen: View {
         .task(id: state.revision) { await reload() }
         .sheet(item: $edit) { EditSheet($0) }
         .sheet(item: $destinationRequest) { DestinationSheet($0) }
+        .sheet(item: $assignment) { AssignmentSheet($0) }
         .quickLookPreview($preview)
         .photosPicker(isPresented: $pickingPhoto, selection: $selectedPhoto, matching: .images, preferredItemEncoding: .compatible)
         .task(id: selectedPhoto) { await uploadSelectedPhoto() }
@@ -178,14 +180,7 @@ struct CardScreen: View {
         }
     }
     func members(_ c: Record, _ s: BoardSnapshot) {
-        let ids = s.members(of: c).map { $0.number("user_id") }
-        let options = s.rows("eligibleMembers").filter { s.canManage || $0.id == state.user?.id }.map { ($0.id, $0.title) }
-        var fields = [FormField(id: "user_ids", label: "Người phụ trách", value: .array(ids.map(JSON.id)), kind: .multi(options))]
-        if s.canManage { fields.append(.pick("reviewer_id", "Người duyệt", [("0", "Giữ người duyệt hiện tại / tự động")] + review["candidates"].rows.map { (String($0.id), $0.title) }, "0")) }
-        edit = EditRequest(title: "Thành viên & người duyệt", fields: fields, note: s.canManage ? "Người nhận phải có quyền vào bảng. Người thực hiện không được tự duyệt." : "Bạn có thể tham gia hoặc rời thẻ bằng tài khoản của mình.") { v in
-            _ = try await state.mutate("/api/cards/\(resolvedID)/members", "PUT", ["user_ids": v["user_ids"] ?? .array([])])
-            if let reviewer = v["reviewer_id"], reviewer.int > 0 { _ = try await state.mutate("/api/cards/\(resolvedID)/reviewer", "PUT", ["reviewer_id": .id(reviewer.int)]) }
-        }
+        assignment = AssignmentRequest(card: c, snapshot: s)
     }
     func labels(_ c: Record, _ s: BoardSnapshot) { edit = EditRequest(title: "Nhãn của thẻ", fields: [FormField(id: "label_ids", label: "Nhãn", value: .array(s.labels(of: c).map { .id($0.id) }), kind: .multi(s.rows("labels").map { ($0.id, $0.text("name").isEmpty ? $0.text("color") : $0.text("name")) }))]) { v in _ = try await state.mutate("/api/cards/\(resolvedID)/labels", "PUT", v) } }
     func dates(_ c: Record) {
@@ -214,7 +209,7 @@ struct CardScreen: View {
                         if cm.number("user_id") == state.user?.id || s.canManage { DestructiveButton(title: "Xóa bình luận") { run { _ = try await state.mutate("/api/comments/\(cm.id)", "DELETE") } } }
                     } label: { Image(systemName: "ellipsis") } }
                     Text(cm.text("text")).textSelection(.enabled)
-                    Text(cm.text("created_at") + (cm.text("edited_at").isEmpty ? "" : " · đã sửa")).font(.caption2).foregroundStyle(.secondary)
+                    Text(CompanyClock.displayTimestamp(cm.text("created_at")) + (cm.text("edited_at").isEmpty ? "" : " · đã sửa")).font(.caption2).foregroundStyle(.secondary)
                     FlowLayout { ForEach(["👍", "✅", "❤️", "👀", "🎉"], id: \.self) { emoji in let r = cm["reactions"].rows.first { $0.text("emoji") == emoji }; Button(emoji + ((r?.number("count") ?? 0) > 0 ? " \(r?.number("count") ?? 0)" : "")) { run { _ = try await state.mutate("/api/comments/\(cm.id)/reactions", "POST", ["emoji": .string(emoji)]) } }.font(.caption).padding(5).background(r?.flag("mine") == true ? brand.opacity(0.15) : Color.clear, in: Capsule()) } }
                     Divider()
                 }

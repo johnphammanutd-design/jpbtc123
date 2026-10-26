@@ -2,6 +2,14 @@ import XCTest
 @testable import KaireticCore
 
 final class WorkLogicTests: XCTestCase {
+    func testDisplayedEventTimesUseCompanyTimezone() {
+        XCTAssertEqual(CompanyClock.displayTimestamp("2026-10-26 13:01:41"), "26/10/2026 20:01")
+        XCTAssertEqual(CompanyClock.displayTimestamp("2026-10-26T20:01:41+07:00"), "26/10/2026 20:01")
+        XCTAssertEqual(CompanyClock.displayTimestamp("2026-10-26T08:01:41-05:00"), "26/10/2026 20:01")
+        XCTAssertEqual(CompanyClock.displayTimestamp("2026-10-26T18:30:00.123Z"), "27/10/2026 01:30")
+        XCTAssertEqual(CompanyClock.displayTimestamp("unrecognized"), "unrecognized")
+    }
+
     func json(_ text: String) throws -> JSON { try JSONDecoder().decode(JSON.self, from: Data(text.utf8)) }
     let now = ISO8601DateFormatter().date(from: "2026-10-26T05:00:00Z")!
     func testCompanyDatesAndMinutePrecision() throws {

@@ -22,9 +22,13 @@ public enum CompanyClock {
     public static func activity(_ value: String) -> Date? {
         let iso = ISO8601DateFormatter()
         let s = value.replacingOccurrences(of: " ", with: "T")
-        let full = s.hasSuffix("Z") || s.dropFirst(10).contains("+") ? s : s + "Z"
+        let full = s.hasSuffix("Z") || s.dropFirst(10).contains("+") || s.dropFirst(10).contains("-") ? s : s + "Z"
         if let d = iso.date(from: full) { return d }
         iso.formatOptions.insert(.withFractionalSeconds); return iso.date(from: full)
+    }
+    public static func displayTimestamp(_ value: String) -> String {
+        guard let date = activity(value) else { return value.isEmpty ? "—" : value }
+        return formatter("dd/MM/yyyy HH:mm").string(from: date)
     }
 }
 public struct ReviewCapabilities: Equatable {

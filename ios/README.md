@@ -123,10 +123,10 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Sắp xếp theo tên/hạn/mới tạo | Có | Đã thử đủ ba lựa chọn menu native và thấy thứ tự đổi; API kiểm tra lưu và chặn nhân viên |
 | Sao chép cột/chuyển tất cả/lưu trữ tất cả thẻ | Có mã | Cần UI kiểm tra hàng loạt và quyền |
 | Tạo/sửa thẻ và mô tả Markdown | Có | UI xem; API tạo/sửa; Markdown mới hiển thị dạng hỗ trợ của SwiftUI, chưa có trình soạn thảo định dạng |
-| Nhiều người phụ trách và người duyệt | Có | API kiểm tra giao việc, tự tham gia/rời, người nhận phải có quyền; UI xem người |
+| Nhiều người phụ trách và người duyệt | Đã sửa luồng chọn | UI giám đốc giao leader, leader giao nhân viên qua hai bước; tải ứng viên duyệt sau khi lưu người phụ trách. API kiểm tra no-op/xung đột/thử lại |
 | Nhãn của thẻ và quản lý nhãn | Có mã | API/thẻ mẫu; chưa thử thêm/sửa/xóa nhãn native |
 | Ngày bắt đầu/hạn/giờ/lặp/nhắc | Có | API lặp cuối tháng/reset checklist; UI đã thấy kỳ mới; UI đã mở bộ chọn ngày/giờ và gỡ hạn cũng gỡ giờ; thay đổi thử được hủy, không đổi kỳ lặp của thẻ |
-| Gửi duyệt → yêu cầu sửa → gửi lại → duyệt | Có | API đủ hai tầng; UI nhân viên→leader ở đợt đầu, giám đốc yêu cầu leader sửa ở đợt này; UI chặn ghi chú rỗng |
+| Gửi duyệt → yêu cầu sửa → gửi lại → duyệt | Có | UI đủ vòng nhân viên→leader và leader→giám đốc; chặn ghi chú rỗng, nhân viên đọc được ghi chú, hai thẻ sang Hoàn thành; API xác nhận lịch sử |
 | Chặn tự duyệt, người khác duyệt thay không đúng quyền | Có | API âm tính + chính sách nút native |
 | Sửa nội dung mở lại việc đã gửi duyệt | Có | API xác nhận; bình luận không làm mất trạng thái chờ duyệt |
 | Checklist nhiều nhóm, người/hạn việc con, chuyển thành thẻ | Có | API nhóm/người/hạn và reset kỳ; cần UI chuyển việc con thành thẻ |
@@ -149,12 +149,12 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Xuất CSV/JSON và chia sẻ tệp | Có mã | Cần kiểm tra file xuất trong Files/Excel thực tế |
 | Automation theo cột/lịch/hạn/nút | Có mã | Bộ tạo hành động cơ bản; chưa UI thử từng loại và mọi tổ hợp |
 | AI tóm tắt/mô tả/checklist | Có mã | Chưa gọi nhà cung cấp trong kiểm thử, không phát sinh chi phí AI |
-| Tìm kiếm toàn cục | Có | API không lộ thẻ sau thu hồi quyền; còn UI tìm kiếm |
+| Tìm kiếm toàn cục | Có | UI nhân viên tìm được việc được giao, không thấy sentinel bảng riêng; ô nhập luôn hiện. API chặn bảng riêng/tìm kiếm |
 | Inbox và chuyển thành thẻ | Có | UI sửa nhiều dòng, chọn ngày và lưu khi bàn phím mở; chuyển thành thẻ có API, chưa thử UI đợt này |
 | Kéo thả sắp xếp Inbox | Đã thêm | UI đã kéo mục cuối lên đầu; API xác nhận thứ tự lưu, đăng nhập lại giữ thứ tự và chặn tài khoản khác. Menu và hành động trợ năng có mã, chưa thử bằng VoiceOver |
 | Planner cá nhân và lịch tự động từ hạn | Có | API thực, phân biệt lịch cá nhân với lịch đến hạn; cần UI đổi ngày |
 | Việc của tôi, đã hoàn thành và hơn 100 việc | Đã sửa | Test 121 thẻ; UI nhân viên chuyển Đang làm/Đã xong, thấy đúng thẻ demo tương ứng |
-| Thông báo trong app | Có | API và ánh xạ tiếng Việt; cần UI mở thông báo/đánh dấu đã đọc |
+| Thông báo trong app | Có | UI nhân viên nhận/mở đúng yêu cầu sửa có ghi chú; thời gian đổi sang giờ công ty. Push nền vẫn chưa có |
 | Cập nhật realtime/foreground | Có mã | Có kết nối lại; cần thử hai máy và mất mạng/khôi phục mạng |
 | Liên kết chia sẻ thẻ | Có một phần | Web link và custom scheme; chưa Universal Links HTTPS |
 | Push khi app đóng | Chưa có trên native | Web dùng Web Push; cần thêm APNs/Apple để phát native |
@@ -231,3 +231,39 @@ Chưa thử trên iPhone thật, iCloud Photos chậm, ảnh 100 MB, hết dung 
 - **Chế độ tối/chữ lớn:** thử Inbox, biểu mẫu soạn/sửa, Tổng quan, Task, Kanban, Bảng kê và bộ lọc với giao diện tối; tăng 6 mức chữ từ cỡ ban đầu tới cỡ trợ năng. Đã cuộn tới các trường/nút, xác nhận menu thay bộ chọn phân đoạn, nhãn xuống dòng và Tổng quan một cột. Thử lại các chỉnh sửa màu, ô soạn và thanh công cụ trực tiếp trong Xcode. Sau thử đã để Simulator ở giao diện sáng và cỡ chữ ban đầu.
 - **Sắp xếp native:** đã chọn đủ tên A→Z, hạn sớm trước, mới tạo trước từ menu cột và thấy thẻ đổi thứ tự. Bảng kê mở đủ năm tiêu chí, đã đổi tên/hạn và hai chiều, xác nhận thẻ đầu danh sách thay đổi theo lựa chọn. Các tiêu chí còn lại có test logic, chưa thao tác UI mọi tổ hợp.
 - Dữ liệu kiểm thử chỉ ở localhost:3101. Chưa kiểm tra thiết bị thật, VoiceOver đọc toàn luồng, mức chữ trợ năng lớn nhất hoặc mọi menu/mọi kích thước màn hình. Không coi các màn đã thử là nghiệm thu đầy đủ toàn app.
+
+
+## Quy trình công ty qua ba vai trò — 26/10/2026
+
+### Lỗi phát hiện và sửa trong khi thử UI
+
+- Biểu mẫu cũ tải ứng viên người duyệt trước khi thay người phụ trách. Khi giám đốc chọn leader thực hiện, menu vẫn hiện leader và thiếu giám đốc; máy chủ chặn lựa chọn sai nhưng giao diện gây nhầm. Đã thay bằng hai bước: **lưu người phụ trách → tải danh sách hợp lệ từ API → chọn/lưu người duyệt**. Không suy đoán ứng viên từ vai trò trên máy. Khi bấm Tiếp tục, người phụ trách đã được lưu; Đóng ở bước hai không hoàn tác bước một, biểu mẫu ghi rõ điều này.
+- Trước khi lưu người phụ trách, tải lại thẻ để tránh ghi đè thay đổi từ máy khác; bỏ qua PUT nếu không đổi người. Nếu đã lưu nhưng tải người duyệt lỗi, báo rõ phần đã lưu và cho thử lại. Trước khi lưu người duyệt, kiểm tra lại danh sách trên API. Không có ứng viên thì cho hoàn tất phân công và chọn người duyệt sau, không tạo quyền tự duyệt. Kiểm tra client không thay thế kiểm tra/khóa đồng thời phía server.
+- Thông báo/nhật ký/bình luận/lịch sử duyệt đang hiện chuỗi UTC từ SQLite. Đã đổi hiển thị sang **Asia/Ho_Chi_Minh**, dạng ngày/tháng/năm giờ:phút; có test UTC, offset dương/âm, phần giây thập phân và qua nửa đêm.
+- Ô tìm kiếm trước đó ẩn tới khi kéo xuống. Đã cho hiện luôn để người dùng có thể nhập ngay khi vào màn Tìm kiếm.
+
+### Thao tác thực trong Xcode/Device Hub
+
+Dùng iPhone 18 Pro / iOS 27.0 và ba tài khoản demo, toàn bộ thao tác ghi của quy trình dưới đây thực hiện trong giao diện app. Bảng riêng và thẻ sentinel dùng làm fixture kiểm tra ACL được chuẩn bị qua API demo.
+
+1. **Giám đốc:** tạo bảng `[DEMO E2E] QA-ROLE-FLOW-01`, gắn Team thử nghiệm, cấp quyền Thành viên cho Nhân viên Demo. Leader nhận quyền quản lý từ team, không cần cố định số team. Tạo `QA-DIRECTOR-TO-LEADER-01`, giao Leader Demo và chọn Quản trị viên duyệt qua biểu mẫu mới.
+2. **Leader:** đăng nhập, thấy bảng team với quyền Quản lý, không thấy `[DEMO E2E] Director-only`. Tạo `QA-LEADER-TO-STAFF-01`, giao Nhân viên Demo và chọn Leader Demo duyệt. Gửi công việc riêng lên giám đốc; không có nút tự duyệt.
+3. **Nhân viên:** không có nút tạo bảng, chỉ thấy các bảng được cấp quyền với vai trò Thành viên. Tìm `QA-PRIVATE-NOT-VISIBLE` không có kết quả; tìm `QA-LEADER-TO-STAFF-01` có đúng kết quả. Biểu mẫu thành viên chỉ cho thay đổi tham gia/rời bằng tài khoản của mình. Gửi duyệt việc được giao, không có nút tự duyệt.
+4. **Leader:** mở việc nhân viên trong Cần bạn duyệt. Bấm yêu cầu sửa mà không ghi chú bị chặn. Nhập `QA-ADD-RESULT-01` và gửi; thẻ thành Cần chỉnh sửa.
+5. **Nhân viên:** mở thông báo có nguyên ghi chú của leader, bổ sung mô tả `QA-RESULT-UPDATED-01`, lưu và gửi duyệt lại.
+6. **Leader:** thấy nội dung đã sửa, duyệt hoàn thành công việc nhân viên. **Giám đốc:** đăng nhập, mở việc leader gửi và duyệt hoàn thành.
+
+### Đối chiếu dữ liệu và phạm vi
+
+- API xác nhận hai thẻ ở trạng thái `approved`, `due_complete=1`, cột Hoàn thành. Thẻ leader có chuỗi **leader gửi → giám đốc duyệt**; thẻ nhân viên có chuỗi **nhân viên gửi → leader yêu cầu sửa có ghi chú → nhân viên gửi lại → leader duyệt**. Nội dung sửa, người phụ trách và người duyệt khớp UI.
+- API xác nhận nhân viên là member, leader là manager qua team; leader và nhân viên GET bảng riêng bị 403, tìm kiếm không trả thẻ sentinel. Không sửa quyền/dữ liệu production. Hai thẻ đã duyệt được giữ trên bảng demo cho người dùng xem lại.
+- **36 test Swift/API qua, 0 lỗi**, gồm 5 bài tích hợp thực trên backend demo. Các test bổ sung bảo vệ thứ tự lưu người→tải ứng viên, no-op giữ chờ duyệt, thử lại sau lỗi tải và xung đột giao việc; test giờ công ty gồm qua ngày.
+- Debug Simulator đã build/chạy trực tiếp bằng Xcode; Release iPhoneOS arm64 chưa ký đã build thành công. UI đã xác nhận giờ công ty trong thông báo/nhật ký/lịch sử và ô tìm kiếm hiện ngay, chi tiết bên dưới.
+- Chưa thử iPhone thật, push nền APNs, mạng chập chờn trên hai thiết bị đồng thời hoặc mọi tổ hợp phân quyền/nhiều người phụ trách bằng UI. Đây là nghiệm thu các kịch bản nêu trên, không phải tuyên bố hoàn tất toàn bộ app.
+
+
+### Xác nhận giao diện trên bản cuối
+
+- Thông báo giám đốc hiển thị lần gửi của leader là `26/10/2026 19:54`; nhật ký/lịch sử thẻ nhân viên hiện các mốc 19:58 → 20:01 → 20:03 → 20:06 theo giờ công ty. Ghi chú yêu cầu sửa `QA-ADD-RESULT-01` vẫn hiện đầy đủ.
+- Mở Tìm kiếm đã thấy ô nhập ngay, không kéo xuống; nhập tên thẻ đã duyệt vẫn tìm và mở được.
+- App đang đăng nhập giám đốc demo, ở bảng `[DEMO E2E] QA-ROLE-FLOW-01` → cột Hoàn thành với đủ hai công việc, để người dùng xem lại. Giao diện sáng và cỡ chữ thông thường.
