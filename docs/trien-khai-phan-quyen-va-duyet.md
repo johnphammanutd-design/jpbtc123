@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-Đây là bản cập nhật web/API làm nền cho iOS. Giữ Express, SQLite và giao diện web hiện có. Chưa phải ứng dụng iOS native và chưa được triển khai lên task.kairetic.com từ máy Codex.
+Đây là bản cập nhật web/API làm nền cho iOS. Giữ Express, SQLite và giao diện web hiện có. Chưa phải ứng dụng iOS native. Mã ứng dụng `19d10ef` đã được triển khai lên task.kairetic.com từ máy Codex vào ngày 26/10/2026.
 
 - Mọi bảng cần quyền truy cập rõ ràng. Giám đốc/quản trị (`is_admin`) thấy và quản lý tất cả bảng. Thành viên được cấp vai trò `member` hoặc `manager` theo bảng. Leader quản lý các bảng được giám đốc gắn với team của họ. Không giới hạn số team hoặc số leader.
 - API kiểm tra quyền cho cả dữ liệu con, file đính kèm và WebSocket. Cookie chỉ dùng để trình duyệt hiển thị file được cấp quyền; API tiếp tục yêu cầu Bearer token.
@@ -81,6 +81,14 @@ Tài khoản demo: `admin`, `leader.demo`, `staff.demo`; mật khẩu demo chung
 
 Chưa làm ứng dụng iOS native, push APNs/FCM, đồng bộ lịch ngoài, offline sync, các chế độ Timeline/Map, chợ Power-Ups hoặc toàn bộ bộ máy Butler của Trello. Table hiện vẫn là bảng kê cơ bản; mô tả có toolbar Markdown và xem trước, chưa phải bộ soạn thảo WYSIWYG đầy đủ. Mirror trên web mở thẻ gốc để sửa; cần quyền cả bảng gốc và bảng đặt mirror. Chưa kiểm chứng gửi push thực tế hoặc AI trên production.
 
-Máy Codex đang thiết lập đăng nhập GitHub CLI và SSH theo lựa chọn của chủ dự án; cần người dùng hoàn tất đăng nhập và cấp khóa công khai trên VPS. Cần kết nối hợp lệ hoặc chuyển gói mã cho người đang có quyền triển khai; không gửi khóa riêng/mật khẩu qua chat.
+Máy Codex đã xác thực GitHub CLI và SSH theo lựa chọn của chủ dự án. Khóa riêng và thông tin đăng nhập chỉ lưu cục bộ, không nằm trong kho mã. Khi thiết lập một máy khác, cần cấp quyền cho máy đó và xác minh fingerprint máy chủ; không gửi khóa riêng/mật khẩu qua chat.
 
 Thư viện `body-parser` được khóa ở bản 1.20.9 để nhận bản vá [GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828).
+
+## Xác nhận đợt triển khai 26/10/2026
+
+- 21 nhóm kiểm thử đạt trong image production trên Node.js 22; `npm audit --omit=dev` không báo lỗ hổng đã biết tại thời điểm kiểm tra.
+- Bản sao dữ liệu thật qua kiểm tra migration, cấp quyền và sao chép tất cả bảng đang mở; tài khoản đã khóa vẫn giữ tham chiếu lịch sử mà không được cấp lại quyền truy cập.
+- Trước khởi động bản mới, đã so sánh dữ liệu ở 27 bảng gốc, ngoại trừ các quyền/thuộc tính hiển thị được thay theo kế hoạch đã chốt. Khóa VAPID giữ nguyên; kiểm tra SQLite và khóa ngoại đạt.
+- Website trả đúng các file giao diện của bản phát hành; API chưa đăng nhập trả 401. Đã xem trực tiếp màn hình tổng quan, xác nhận ngày hạn trên lịch và Bảng kê được ẩn khi chuyển sang Planner.
+- Quyền xem được giữ theo yêu cầu chủ dự án bằng quyền thành viên cụ thể. Việc chia team, chỉ định leader và thu hẹp quyền theo bảng sẽ do chủ dự án thiết lập trong giao diện.

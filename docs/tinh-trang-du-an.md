@@ -1,12 +1,12 @@
 # Tình trạng dự án — Bảng công việc công ty (Trello nội bộ)
 
-## Cập nhật Codex — 26/10/2026 (đang chạy thử, chưa đưa lên production)
+## Cập nhật Codex — 26/10/2026 (đã triển khai web)
 
-Bản web/API mới đã thêm phân quyền bảng/team/leader, quy trình gửi duyệt/yêu cầu sửa/duyệt hoàn thành, checklist nhiều nhóm có người và hạn, sửa bình luận/phản ứng, sao chép dữ liệu đầy đủ hơn, công cụ thao tác cột, tổng quan theo team và các sửa lỗi lịch/Planner/nhắc hạn/công việc lặp. Đã qua 21 nhóm kiểm thử trên DB riêng và kiểm tra giao diện bằng Chrome. Đây là nền web/API cho mobile; chưa phải app iOS native.
+Bản web/API mới đã thêm phân quyền bảng/team/leader, quy trình gửi duyệt/yêu cầu sửa/duyệt hoàn thành, checklist nhiều nhóm có người và hạn, sửa bình luận/phản ứng, sao chép dữ liệu đầy đủ hơn, công cụ thao tác cột, tổng quan theo team và các sửa lỗi lịch/Planner/nhắc hạn/công việc lặp. Đã qua 21 nhóm kiểm thử trên Node.js 22 trong image triển khai, kiểm tra migration/sao chép trên bản sao dữ liệu thật và kiểm tra giao diện production bằng Chrome. Đây là nền web/API cho mobile; chưa phải app iOS native.
 
-**Cần chuẩn bị quyền truy cập trước production:** phiên bản mới yêu cầu cấp quyền cho mọi bảng; không còn tự cho mọi nhân viên xem bảng workspace. Chi tiết, kế hoạch cấp quyền và quy trình backup/cập nhật nằm tại [trien-khai-phan-quyen-va-duyet.md](trien-khai-phan-quyen-va-duyet.md).
+**Phân quyền production:** phiên bản mới yêu cầu cấp quyền cho mọi bảng; không còn tự cho mọi nhân viên xem bảng workspace. Theo lựa chọn của chủ dự án, quyền xem hiện tại đã được giữ bằng các quyền thành viên cụ thể; chưa tự gán team hoặc leader. Chi tiết, kế hoạch cấp quyền và quy trình backup/cập nhật nằm tại [trien-khai-phan-quyen-va-duyet.md](trien-khai-phan-quyen-va-duyet.md).
 
-Máy Mac đang thiết lập đăng nhập GitHub CLI và SSH production theo lựa chọn của chủ dự án. Chưa thực hiện push/deploy từ máy này ở thời điểm ghi cập nhật. Các mô tả “đã ngang Trello”, “75 API đủ mobile” và mô hình phân quyền hai tầng trong tài liệu bàn giao cũ là tình trạng trước đợt kiểm tra này, không phải kết luận của bản hiện tại.
+Máy Mac đã xác thực GitHub CLI và SSH production. Mã ứng dụng `19d10ef` đã được đẩy lên nhánh làm việc và triển khai tại https://task.kairetic.com. Đã sao lưu trước chuyển, đối chiếu dữ liệu gốc và giữ khóa VAPID. Ảnh Docker cũ được giữ để có thể quay lại khi cần. Các mô tả “đã ngang Trello”, “75 API đủ mobile” và mô hình phân quyền hai tầng trong tài liệu bàn giao cũ là tình trạng trước đợt kiểm tra này, không phải kết luận của bản hiện tại.
 
 
 *Cập nhật: 15/10/2026. File này để bất kỳ phiên Claude nào (local/VPS) hoặc thành viên đội
