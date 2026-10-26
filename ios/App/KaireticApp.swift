@@ -162,11 +162,18 @@ struct NotificationsScreen: View {
         List {
             if state.notifications.isEmpty { EmptyState(title: "Chưa có thông báo", symbol: "bell") }
             ForEach(state.notifications) { n in
-                NavigationLink { CardScreen(cardID: n.number("card_id")) } label: { VStack(alignment: .leading, spacing: 8) {
+                NavigationLink {
+                    // Mark read after navigation; a row tap gesture can consume the link's activation.
+                    CardScreen(cardID: n.number("card_id")).task {
+                        guard !n.flag("read") else { return }
+                        do { _ = try await state.mutate("/api/notifications/read", "POST", ["ids": .array([.id(n.id)])]) }
+                        catch { state.message = error.localizedDescription }
+                    }
+                } label: { VStack(alignment: .leading, spacing: 8) {
                     HStack { if !n.flag("read") { Circle().fill(brand).frame(width: 7, height: 7) }; Text(n.text("card_title")).fontWeight(n.flag("read") ? .regular : .semibold) }
                     Text(notificationText(n)).font(.subheadline).foregroundStyle(.secondary)
                     Text(CompanyClock.displayTimestamp(n.text("created_at"))).font(.caption).foregroundStyle(.secondary)
-                }.padding(.vertical, 5) }.simultaneousGesture(TapGesture().onEnded { state.handle { _ = try await state.mutate("/api/notifications/read", "POST", ["ids": .array([.id(n.id)])]) } })
+                }.padding(.vertical, 5) }
             }
         }.navigationTitle("Thông báo").toolbar { Button("Đọc hết") { state.handle { _ = try await state.mutate("/api/notifications/read") } }.disabled(state.unread == 0) }
         .refreshable { do { try await state.refresh() } catch { state.message = error.localizedDescription } }

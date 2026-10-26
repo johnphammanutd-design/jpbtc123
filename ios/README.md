@@ -279,3 +279,27 @@ Dùng iPhone 18 Pro / iOS 27.0 và ba tài khoản demo, toàn bộ thao tác gh
 - Đã xác minh chữ ký của `.app` bằng `codesign --verify --strict`. Metadata trong profile kèm app có thiết bị đang thử và hạn **02/11/2026 21:57:54 (Asia/Ho_Chi_Minh)**; sau hạn cần build/cài lại bằng Xcode với Personal Team, không phải thời hạn của tài khoản công ty hay dữ liệu trên server.
 - Lựa chọn Team của Mac này nằm trong `Signing.local.xcconfig`, được Git bỏ qua. Project/generator đọc cấu hình này cho cả Debug/Release. `plutil` kiểm tra project hợp lệ; `xcodebuild -showBuildSettings` xác nhận cả hai cấu hình đọc Team và giữ bundle `com.kairetic.task`, ký Automatic. Không lưu Apple Account, UDID, khóa riêng hoặc provisioning profile trong kho mã.
 - Chưa cấu hình TestFlight/APNs, chưa thử mọi chức năng, ảnh/tệp thực, mạng yếu hoặc VoiceOver trên thiết bị này. Đợt cài thiết bị chỉ đổi cấu hình ký/tài liệu, không đổi logic nghiệp vụ; kết quả 36 test Swift/API của bản trước vẫn được ghi ở phần trên.
+
+## Quy trình trên iPhone thật và web công ty — 26/10/2026
+
+Sau đợt cài ban đầu, người dùng đồng ý thử quy trình trên một bảng riêng và tự đăng nhập quản trị trên web. Đợt này có thao tác ghi trên hệ thống thật, giới hạn ở **bảng QA mới số 7** và **thẻ thử số 29**; không thao tác sửa công việc, team hoặc quyền của các bảng cũ. Bảng QA không gắn team, quản trị giữ quyền quản lý và tài khoản đang dùng trên iPhone được cấp Thành viên chỉ cho bảng mới.
+
+### Kết quả thao tác thực
+
+1. **Web quản trị:** tạo bảng QA với Cần làm / Đang làm / Chờ duyệt / Hoàn thành, tạo thẻ `[QA iPhone] Kiểm tra quy trình duyệt — 01`, giao tài khoản nhân viên trên iPhone và chọn quản trị làm người duyệt sau khi lưu người thực hiện.
+2. **iPhone 16 Pro Max / iOS 27.0.1:** app khởi động lại vẫn khôi phục phiên, Việc của tôi có thẻ vừa giao. Mở thẻ thấy đúng mô tả, người phụ trách và người duyệt. Gửi duyệt thành công; thẻ thành Chờ duyệt, nhân viên không có nút tự duyệt.
+3. **Web quản trị:** gửi yêu cầu sửa với ghi chú `QA-IPHONE-CHANGE-01`. iPhone nhận thông báo có đầy đủ ghi chú và thời gian theo giờ công ty.
+4. **iPhone:** mở thẻ từ thông báo, sửa mô tả thành `QA-IPHONE-01: Da bo sung ket qua theo yeu cau sua. Du lieu thu rieng.` và lưu. Web đọc lại đúng nội dung; iPhone gửi duyệt lần hai thành công.
+5. **Web quản trị:** duyệt hoàn thành. Giao diện xác nhận Đã duyệt hoàn thành và checkbox Hoàn thành được chọn. Lịch sử có đúng **nhân viên gửi → quản trị yêu cầu sửa có ghi chú → nhân viên gửi lại → quản trị duyệt**. Nội dung bổ sung vẫn giữ nguyên.
+6. **iPhone:** nhận thông báo được duyệt, mở ra đúng thẻ Đã duyệt; nhật ký có các tác giả/hành động/thời gian tương ứng. Việc của tôi → Đã xong có thẻ thử. Giữ bảng và thẻ QA để người dùng xem lại.
+
+### Lỗi thông báo được phát hiện và sửa
+
+Trước sửa, chạm thông báo trên iPhone đánh dấu đã đọc nhưng không mở thẻ. Dòng `NavigationLink` gắn thêm `simultaneousGesture` để gọi API đọc thông báo. Đã bỏ gesture trên dòng và chuyển đánh dấu đã đọc sang task của màn chi tiết sau khi điều hướng; thông báo vốn đã đọc không gửi lại thao tác này.
+
+- Build Debug arm64 iPhoneOS thành công; Xcode đã ký/cài/chạy bản sửa lên cùng iPhone và giữ phiên công ty.
+- UI kiểm tra lại thông báo yêu cầu sửa **đã đọc**: mở được đúng thẻ cần chỉnh sửa.
+- UI kiểm tra thông báo hoàn thành mới **chưa đọc**: mở được thẻ đã duyệt, đánh dấu riêng thông báo đó; badge vẫn còn thông báo giao việc chưa đọc.
+- Không thêm test mô phỏng cử chỉ bằng logic Foundation. Kiểm chứng bản sửa bằng build và thao tác thực trên thiết bị; bộ 36 test trước đó không chạy lại trong đợt chỉ sửa điều hướng này.
+
+Đợt này kiểm tra **hai phía nhân viên iPhone và quản trị web**, chưa thay thế nghiệm thu mọi vai trò/mọi thao tác trên iPhone. Không thay đổi backend production, không thêm APNs/offline/TestFlight. Bảng thử: `https://task.kairetic.com/#b/7`; thẻ thử: `https://task.kairetic.com/#c/29` (vẫn yêu cầu đăng nhập và quyền truy cập).
