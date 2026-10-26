@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import webpush from 'web-push';
 import { db, hashPassword, verifyPassword, ensureBoardLabels } from './db.js';
+import { canSeeBoard, canSeeCard, canManageBoard, invalidateReview, canReadUpload, boardRole, isLeader, userById, requireBoard, authorizeResource, validateActions, fail } from './access.js';
+import { cloneCard, moveCard } from './card-data.js';
+import { registerWorkRoutes } from './work-routes.js';
+import { companyDate, validDate, validTime, addDays, nextOccurrence, dueInstant, REMIND_MS } from './dates.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -65,7 +69,7 @@ const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 30);
 function getSessionUser(token) {
   if (!token) return null;
   return db.prepare(`
-    SELECT u.id, u.username, u.name, u.is_admin FROM sessions s
+    SELECT u.id, u.username, u.name, u.is_admin, u.disabled FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND u.disabled = 0
       AND s.created_at > datetime('now', ?)
@@ -79,11 +83,13 @@ function pruneSessions() {
 
 function auth(req, res, next) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const cookieToken = (req.headers.cookie || '').split(';').map(v => v.trim()).find(v => v.startsWith('kanban-session='))?.slice(15);
+  const token = header.startsWith('Bearer ') ? header.slice(7) : (req.method==='GET' && req.originalUrl.startsWith('/u/') ? cookieToken : null);
   const user = getSessionUser(token);
   if (!user) return res.status(401).json({ error: 'Chưa đăng nhập hoặc phiên đã hết hạn' });
   req.user = user;
   req.token = token;
+  if (!cookieToken && header.startsWith('Bearer ')) setSessionCookie(req, res, token);
   next();
 }
 
@@ -91,6 +97,16 @@ function adminOnly(req, res, next) {
   if (!req.user.is_admin) return res.status(403).json({ error: 'Chỉ quản trị viên được phép' });
   next();
 }
+
+
+function setSessionCookie(req, res, token) {
+  res.cookie('kanban-session', token, { httpOnly: true, sameSite: 'strict', secure: req.secure, maxAge: SESSION_TTL_DAYS * 864e5, path: '/' });
+}
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control','no-store');
+  if (req.path === '/login') return next();
+  auth(req, res, () => authorizeResource(req, res, next));
+});
 
 app.post('/api/login', loginThrottle, (req, res) => {
   const { username, password } = req.body || {};
@@ -103,15 +119,17 @@ app.post('/api/login', loginThrottle, (req, res) => {
   pruneSessions();
   const token = crypto.randomBytes(32).toString('hex');
   db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, row.id);
-  res.json({ token, user: { id: row.id, username: row.username, name: row.name, is_admin: !!row.is_admin } });
+  setSessionCookie(req, res, token);
+  res.json({ token, user: { id: row.id, username: row.username, name: row.name, is_admin: !!row.is_admin, is_leader:isLeader(row.id) } });
 });
 
 app.post('/api/logout', auth, (req, res) => {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(req.token);
+  res.clearCookie('kanban-session', { path: '/' });
   res.json({ ok: true });
 });
 
-app.get('/api/me', auth, (req, res) => res.json({ user: req.user }));
+app.get('/api/me', auth, (req, res) => res.json({ user: { ...req.user, is_leader: isLeader(req.user.id) } }));
 
 app.post('/api/me/password', auth, (req, res) => {
   const { current, password } = req.body || {};
@@ -213,6 +231,9 @@ function pushTypeText(type, data) {
     case 'due_overdue': return `🔴 ${t} đã TRỄ HẠN (${data.due})`;
     case 'completed': return `✅ ${t} đã hoàn thành`;
     case 'created': return `🆕 Thẻ mới ${t} trên board bạn theo dõi`;
+    case 'review_requested': return 'Công việc chờ bạn duyệt: '+t;
+    case 'review_approved': return 'Đã duyệt hoàn thành: '+t;
+    case 'review_changes': return 'Cần chỉnh sửa: '+t;
     default: return t;
   }
 }
@@ -239,7 +260,7 @@ function sendWebPush(userId, type, cardId, data) {
 
 // Tạo thông báo cho userId (bỏ qua khi tự mình gây ra), đẩy realtime + Web Push
 function pushNotification(userId, actorId, type, boardId, cardId, data = {}) {
-  if (!userId || userId === actorId) return;
+  if (!userId || userId === actorId || (boardId && !canSeeBoard(userById(userId),boardId)) || (cardId && !canSeeCard(userById(userId),cardId))) return;
   db.prepare(`INSERT INTO notifications (user_id, actor_id, type, board_id, card_id, data)
               VALUES (?, ?, ?, ?, ?, ?)`)
     .run(userId, actorId, type, boardId, cardId, JSON.stringify(data));
@@ -270,6 +291,7 @@ const cardMemberIds = cardId =>
 // Người nhận thông báo của một thẻ: thành viên ∪ theo dõi thẻ ∪ theo dõi board
 const cardRecipientIds = cardId => [...new Set([
   ...cardMemberIds(cardId),
+  ...db.prepare('SELECT lw.user_id FROM list_watchers lw JOIN cards c ON c.list_id=lw.list_id WHERE c.id=?').all(cardId).map(r=>r.user_id),
   ...db.prepare('SELECT user_id FROM card_watchers WHERE card_id = ?').all(cardId).map(r => r.user_id),
   ...db.prepare(`SELECT bw.user_id FROM board_watchers bw
     JOIN lists l ON l.board_id = bw.board_id JOIN cards c ON c.list_id = l.id
@@ -287,34 +309,38 @@ function mentionedUserIds(text) {
     .all(...names).map(r => r.id);
 }
 
-// Nhắc hạn: mỗi giờ quét thẻ đến hạn hôm nay/mai hoặc vừa trễ — mỗi thẻ+ngày chỉ nhắc 1 lần
-function scanDueNotifications() {
-  const today = new Date().toISOString().slice(0, 10);
-  const REMIND_DAYS = { '0d': 0, '1d': 1, '2d': 2, '7d': 7 };
-  const horizon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-  const cards = db.prepare(`
-    SELECT c.id, c.title, c.due_date, c.remind, l.board_id FROM cards c JOIN lists l ON l.id = c.list_id
-    WHERE c.archived = 0 AND c.due_complete = 0 AND c.due_date != '' AND c.due_date <= ?
-  `).all(horizon);
-  const seen = db.prepare(`SELECT 1 FROM notifications WHERE user_id = ? AND card_id = ? AND type = ? AND data LIKE ?`);
+// Nhắc theo ngày/giờ của công ty, độc lập múi giờ máy chủ.
+function scanDueNotifications(now = new Date()) {
+  const cards = db.prepare(`SELECT c.*,l.board_id FROM cards c JOIN lists l ON l.id=c.list_id JOIN boards b ON b.id=l.board_id
+    WHERE c.archived=0 AND l.archived=0 AND b.closed=0 AND c.is_template=0 AND c.mirror_of IS NULL AND c.due_complete=0 AND c.due_date!=''`).all();
+  const seen = db.prepare("SELECT 1 FROM notifications WHERE user_id=? AND card_id=? AND type=? AND json_extract(data,'$.occurrence')=?");
   for (const c of cards) {
-    let type = null;
-    if (c.due_date < today) {
-      if (c.due_date < new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10)) continue; // trễ quá 3 ngày thì thôi
-      type = 'due_overdue';
-    } else {
-      // Nhắc trước hạn theo mức từng thẻ (none = không nhắc trước)
-      const days = REMIND_DAYS[c.remind];
-      if (days === undefined) continue;
-      const remindFrom = new Date(new Date(c.due_date) - days * 864e5).toISOString().slice(0, 10);
-      if (today < remindFrom) continue;
-      type = 'due_soon';
-    }
+    if (c.remind==='none' || REMIND_MS[c.remind]===undefined) continue;
+    const due = dueInstant(c.due_date,c.due_time), time = now.getTime();
+    if (!Number.isFinite(due) || time < due - REMIND_MS[c.remind] || time > due+3*864e5) continue;
+    const type = time > due ? 'due_overdue' : 'due_soon';
+    const occurrence = c.due_date+'T'+(c.due_time || '23:59')+'|'+c.remind;
     for (const uid of cardRecipientIds(c.id)) {
-      if (seen.get(uid, c.id, type, `%"${c.due_date}"%`)) continue;
-      pushNotification(uid, null, type, c.board_id, c.id, { title: c.title, due: c.due_date });
+      if (!seen.get(uid,c.id,type,occurrence)) pushNotification(uid,null,type,c.board_id,c.id,{title:c.title,due:c.due_date,due_time:c.due_time,occurrence});
     }
   }
+}
+
+function completeCard(cardId, approved = false) {
+  const card = db.prepare('SELECT c.*,b.approval_required FROM cards c JOIN lists l ON l.id=c.list_id JOIN boards b ON b.id=l.board_id WHERE c.id=?').get(cardId);
+  if (card.approval_required && !approved) return false;
+  db.prepare('UPDATE cards SET due_complete=1 WHERE id=?').run(cardId);
+  if (card.recur && card.due_date) {
+    const anchor=card.recur==='monthly'?(card.recur_anchor_day || Number(card.due_date.slice(8))):0;
+    const next=nextOccurrence(card.due_date,card.recur,anchor),delta=Math.round((Date.parse(next)-Date.parse(card.due_date))/864e5);
+    const start=validDate(card.start_date)?addDays(card.start_date,delta):card.start_date;
+    db.prepare("UPDATE cards SET due_date=?,start_date=?,recur_anchor_day=?,due_complete=0,approval_state='in_progress',submitted_by=NULL WHERE id=?").run(next,start,anchor,cardId);
+    for(const item of db.prepare("SELECT id,due_date FROM checklist_items WHERE card_id=? AND due_date!=''").all(cardId))if(validDate(item.due_date))db.prepare('UPDATE checklist_items SET due_date=? WHERE id=?').run(addDays(item.due_date,delta),item.id);
+    db.prepare('UPDATE checklist_items SET checked=0 WHERE card_id=?').run(cardId);
+    db.prepare('DELETE FROM due_rule_applied WHERE card_id=?').run(cardId);
+    logActivity(boardIdOfCard(cardId),cardId,null,'rule_applied',{applied:['🔁 định kỳ: dời hạn sang '+next]});
+  }
+  return true;
 }
 /* ---------- Automation theo lịch & theo ngày hạn (Butler mở rộng) ---------- */
 
@@ -331,13 +357,15 @@ function sortListNow(listId, by) {
 }
 
 function runScheduledAutomations() {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekday = ((new Date().getDay() + 6) % 7) + 1; // 1=Thứ 2 … 7=CN
+  const today = companyDate();
+  const weekday = ((new Date(today+'T12:00:00Z').getUTCDay() + 6) % 7) + 1; // 1=Thứ 2 … 7=CN
   const rows = db.prepare("SELECT * FROM auto_schedules WHERE enabled = 1 AND last_run != ?").all(today);
   for (const s of rows) {
+    if (db.prepare('SELECT closed FROM boards WHERE id=?').get(s.board_id)?.closed) continue;
     if (s.cadence === 'weekly' && s.weekday !== weekday) continue;
     let a = {};
-    try { a = JSON.parse(s.actions); } catch { continue; }
+    try { a = JSON.parse(s.actions); validateActions(a,s.board_id); } catch { continue; }
+    if ([a.sort?.list_id,a.archive_done_list_id].filter(Boolean).some(id=>db.prepare('SELECT archived FROM lists WHERE id=?').get(Number(id))?.archived)) continue;
     const applied = [];
     if (a.sort?.list_id) { sortListNow(Number(a.sort.list_id), String(a.sort.by || 'due')); applied.push('sort'); }
     if (a.archive_done_list_id) {
@@ -354,19 +382,20 @@ function runScheduledAutomations() {
 }
 
 function runDueRules() {
-  const today = new Date().toISOString().slice(0, 10);
-  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const today = companyDate();
+  const tomorrow = addDays(today,1);
   const rules = db.prepare('SELECT * FROM due_rules WHERE enabled = 1').all();
   for (const rule of rules) {
     let a = {};
-    try { a = JSON.parse(rule.actions); } catch { continue; }
-    const cond = rule.trigger === 'overdue' ? `c.due_date < '${today}'` : `c.due_date = '${tomorrow}'`;
+    try { a = JSON.parse(rule.actions); validateActions(a,rule.board_id); } catch { continue; }
+    const cond = rule.trigger === 'overdue' ? `c.due_date <= '${today}'` : `c.due_date = '${tomorrow}'`;
     const cards = db.prepare(`
-      SELECT c.id, c.title FROM cards c JOIN lists l ON l.id = c.list_id
-      WHERE l.board_id = ? AND c.archived = 0 AND c.due_complete = 0 AND c.due_date != '' AND ${cond}
+      SELECT c.id,c.title,c.due_date,c.due_time FROM cards c JOIN lists l ON l.id=c.list_id
+      WHERE l.board_id = ? AND l.archived=0 AND (SELECT closed FROM boards WHERE id=l.board_id)=0 AND c.is_template=0 AND c.mirror_of IS NULL AND c.archived = 0 AND c.due_complete = 0 AND c.due_date != '' AND ${cond}
         AND NOT EXISTS (SELECT 1 FROM due_rule_applied da WHERE da.rule_id = ? AND da.card_id = c.id)
     `).all(rule.board_id, rule.id);
     for (const c of cards) {
+      if(rule.trigger==='overdue' && dueInstant(c.due_date,c.due_time)>=Date.now()) continue;
       const applied = [];
       if (a.label_id) {
         db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)').run(c.id, Number(a.label_id));
@@ -392,8 +421,10 @@ function hourlyTick() {
   try { runScheduledAutomations(); } catch (e) { console.error('schedules:', e.message); }
   try { runDueRules(); } catch (e) { console.error('dueRules:', e.message); }
 }
-setInterval(hourlyTick, 60 * 60 * 1000);
-setTimeout(hourlyTick, 10 * 1000);
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(hourlyTick, 60 * 1000);
+  setTimeout(hourlyTick, 10 * 1000);
+}
 
 app.get('/api/notifications', auth, (req, res) => {
   const rows = db.prepare(`
@@ -404,8 +435,9 @@ app.get('/api/notifications', auth, (req, res) => {
     LEFT JOIN boards b ON b.id = n.board_id
     WHERE n.user_id = ? ORDER BY n.id DESC LIMIT 50
   `).all(req.user.id);
-  const unread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read = 0').get(req.user.id).n;
-  res.json({ notifications: rows, unread });
+  const visible=rows.filter(n=>(!n.board_id || canSeeBoard(req.user,n.board_id)) && (!n.card_id || canSeeCard(req.user,n.card_id)));
+  const unread=db.prepare('SELECT board_id,card_id FROM notifications WHERE user_id=? AND read=0').all(req.user.id).filter(n=>(!n.board_id || canSeeBoard(req.user,n.board_id)) && (!n.card_id || canSeeCard(req.user,n.card_id))).length;
+  res.json({notifications:visible,unread});
 });
 
 app.post('/api/notifications/read', auth, (req, res) => {
@@ -421,25 +453,13 @@ app.post('/api/notifications/read', auth, (req, res) => {
 
 /* ---------- Boards ---------- */
 
-// Board riêng tư: chỉ thành viên board (hoặc admin) thấy và mở được
-function canSeeBoard(user, boardId) {
-  const b = db.prepare('SELECT visibility FROM boards WHERE id = ?').get(boardId);
-  if (!b) return false;
-  if (b.visibility !== 'private' || user.is_admin) return true;
-  return !!db.prepare('SELECT 1 FROM board_members WHERE board_id = ? AND user_id = ?').get(boardId, user.id);
-}
-
+// Mọi bảng nội bộ đều cần cấp quyền; leader quản lý các bảng thuộc team được giao.
 app.get('/api/boards', auth, (req, res) => {
-  const boards = db.prepare(`
-    SELECT b.*,
-      (SELECT COUNT(*) FROM lists l JOIN cards c ON c.list_id = l.id
-        WHERE l.board_id = b.id AND c.archived = 0 AND l.archived = 0) AS card_count,
-      EXISTS(SELECT 1 FROM board_stars s WHERE s.board_id = b.id AND s.user_id = ?) AS starred
-    FROM boards b
-    WHERE b.visibility != 'private' OR ? = 1
-      OR EXISTS(SELECT 1 FROM board_members m WHERE m.board_id = b.id AND m.user_id = ?)
-    ORDER BY b.position, b.id
-  `).all(req.user.id, req.user.is_admin ? 1 : 0, req.user.id);
+  const boards = db.prepare(`SELECT b.*,
+    (SELECT COUNT(*) FROM lists l JOIN cards c ON c.list_id=l.id WHERE l.board_id=b.id AND l.archived=0 AND c.archived=0) AS card_count,
+    EXISTS(SELECT 1 FROM board_stars s WHERE s.board_id=b.id AND s.user_id=?) AS starred
+    FROM boards b ORDER BY b.position,b.id`).all(req.user.id)
+    .filter(b => canSeeBoard(req.user,b.id)).map(b => ({...b, role:boardRole(req.user,b.id)}));
   res.json({ boards });
 });
 
@@ -447,13 +467,15 @@ app.post('/api/boards', auth, (req, res) => {
   const title = String(req.body?.title || '').trim();
   const background = String(req.body?.background || 'blue');
   if (!title) return res.status(400).json({ error: 'Thiếu tên board' });
-  const info = db.prepare('INSERT INTO boards (title, position, background) VALUES (?, ?, ?)')
+  const info = db.prepare("INSERT INTO boards (title, position, background, visibility) VALUES (?, ?, ?, 'private')")
     .run(title, nextPosition('boards', '', []), background);
   const boardId = info.lastInsertRowid;
+  db.prepare("INSERT INTO board_members(board_id,user_id,role) VALUES (?,?,'manager')").run(boardId,req.user.id);
   for (const t of ['Cần làm', 'Đang làm', 'Chờ duyệt', 'Hoàn thành']) {
     db.prepare('INSERT INTO lists (board_id, title, position) VALUES (?, ?, ?)')
       .run(boardId, t, nextPosition('lists', 'WHERE board_id = ?', [boardId]));
   }
+  db.prepare("UPDATE boards SET review_list_id=(SELECT id FROM lists WHERE board_id=? AND title='Chờ duyệt'),done_list_id=(SELECT id FROM lists WHERE board_id=? AND title='Hoàn thành'),changes_list_id=(SELECT id FROM lists WHERE board_id=? AND title='Đang làm') WHERE id=?").run(boardId,boardId,boardId,boardId);
   ensureBoardLabels(boardId);
   logActivity(boardId, null, req.user.id, 'board_created', { title });
   broadcast(null, { type: 'boards-changed' });
@@ -495,13 +517,17 @@ app.post('/api/boards/:id/star', auth, (req, res) => {
 // Thành viên board (cho board riêng tư)
 app.put('/api/boards/:id/members', auth, (req, res) => {
   const boardId = Number(req.params.id);
-  const ids = (req.body?.user_ids || []).map(Number);
-  db.prepare('DELETE FROM board_members WHERE board_id = ?').run(boardId);
-  const ins = db.prepare('INSERT OR IGNORE INTO board_members (board_id, user_id) VALUES (?, ?)');
-  for (const id of ids) ins.run(boardId, id);
-  ins.run(boardId, req.user.id); // không tự khóa mình
+  const members = Array.isArray(req.body?.members) ? req.body.members : (req.body?.user_ids || []).map(id => ({user_id:Number(id),role:db.prepare('SELECT role FROM board_members WHERE board_id=? AND user_id=?').get(boardId,id)?.role || 'member'}));
+  if (!members.every(m => userById(Number(m.user_id)) && ['manager','member'].includes(m.role))) return res.status(400).json({error:'Thành viên hoặc vai trò không hợp lệ'});
+  // A board manager may delegate, but may not accidentally remove their own management access.
+  if (!req.user.is_admin && !members.some(m => Number(m.user_id)===req.user.id && m.role==='manager')) return res.status(400).json({error:'Giữ ít nhất quyền quản lý của bạn'});
+  db.transaction(() => {
+    db.prepare('DELETE FROM board_members WHERE board_id=?').run(boardId);
+    for (const m of members) db.prepare('INSERT OR IGNORE INTO board_members(board_id,user_id,role) VALUES (?,?,?)').run(boardId,Number(m.user_id),m.role);
+  })();
   notifyBoard(boardId);
-  res.json({ ok: true });
+  broadcast(null,{type:'boards-changed'});
+  res.json({ok:true});
 });
 
 /* ---------- Trường tùy chỉnh (Custom Fields) ---------- */
@@ -509,7 +535,7 @@ app.put('/api/boards/:id/members', auth, (req, res) => {
 app.post('/api/boards/:id/fields', auth, (req, res) => {
   const { name, type, options } = req.body || {};
   if (!String(name || '').trim()) return res.status(400).json({ error: 'Thiếu tên trường' });
-  const t = ['text', 'number', 'date', 'select'].includes(type) ? type : 'text';
+  const t = ['text', 'number', 'date', 'select', 'checkbox'].includes(type) ? type : 'text';
   const info = db.prepare('INSERT INTO board_fields (board_id, name, type, options, position) VALUES (?, ?, ?, ?, ?)')
     .run(Number(req.params.id), String(name).trim().slice(0, 30), t,
       JSON.stringify(Array.isArray(options) ? options.slice(0, 20) : []),
@@ -528,7 +554,10 @@ app.delete('/api/fields/:id', auth, (req, res) => {
 app.put('/api/cards/:id/field/:fieldId', auth, (req, res) => {
   const cardId = Number(req.params.id);
   const fieldId = Number(req.params.fieldId);
-  const value = String(req.body?.value ?? '').slice(0, 300);
+  const field=db.prepare('SELECT * FROM board_fields WHERE id=?').get(fieldId);
+  const before=db.prepare('SELECT value FROM card_field_values WHERE card_id=? AND field_id=?').get(cardId,fieldId)?.value || '';
+  const value = field.type==='checkbox' ? (['1',1,true].includes(req.body?.value)?'1':'0') : String(req.body?.value ?? '').slice(0,300);
+  if(value!==before) invalidateReview(cardId);
   if (value === '') db.prepare('DELETE FROM card_field_values WHERE card_id = ? AND field_id = ?').run(cardId, fieldId);
   else db.prepare(`INSERT INTO card_field_values (card_id, field_id, value) VALUES (?, ?, ?)
     ON CONFLICT(card_id, field_id) DO UPDATE SET value = excluded.value`).run(cardId, fieldId, value);
@@ -569,49 +598,42 @@ app.post('/api/boards/:id/background', auth,
     res.json({ ok: true, url: '/u/' + fileName });
   });
 
-// Sao chép board: cột (màu/WIP), nhãn, thẻ (mô tả/hạn/nhãn/checklist chưa tick), rule vào cột
-app.post('/api/boards/:id/copy', auth, (req, res) => {
-  const src = db.prepare('SELECT * FROM boards WHERE id = ?').get(req.params.id);
-  if (!src) return res.status(404).json({ error: 'Board không tồn tại' });
-  const copy = db.transaction(() => {
-    const newBoardId = db.prepare('INSERT INTO boards (title, position, background, powerups) VALUES (?, ?, ?, ?)')
-      .run(src.title + ' (bản sao)', nextPosition('boards', '', []), src.background, src.powerups).lastInsertRowid;
-    const labelMap = {};
-    for (const l of db.prepare('SELECT * FROM labels WHERE board_id = ? ORDER BY position').all(src.id)) {
-      labelMap[l.id] = db.prepare('INSERT INTO labels (board_id, name, color, position) VALUES (?, ?, ?, ?)')
-        .run(newBoardId, l.name, l.color, l.position).lastInsertRowid;
-    }
-    const listMap = {};
-    for (const l of db.prepare('SELECT * FROM lists WHERE board_id = ? AND archived = 0 ORDER BY position').all(src.id)) {
-      listMap[l.id] = db.prepare('INSERT INTO lists (board_id, title, position, color, wip_limit) VALUES (?, ?, ?, ?, ?)')
-        .run(newBoardId, l.title, l.position, l.color, l.wip_limit).lastInsertRowid;
-      for (const c of db.prepare('SELECT * FROM cards WHERE list_id = ? AND archived = 0 ORDER BY position').all(l.id)) {
-        const newCardId = db.prepare(`INSERT INTO cards (list_id, title, description, due_date, due_time, start_date, recur, remind, cover, position)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .run(listMap[l.id], c.title, c.description, c.due_date, c.due_time, c.start_date, c.recur, c.remind,
-               c.cover.startsWith('url:') ? '' : c.cover, c.position).lastInsertRowid;
-        for (const cl of db.prepare('SELECT label_id FROM card_labels WHERE card_id = ?').all(c.id)) {
-          if (labelMap[cl.label_id]) db.prepare('INSERT INTO card_labels (card_id, label_id) VALUES (?, ?)').run(newCardId, labelMap[cl.label_id]);
-        }
-        for (const ci of db.prepare('SELECT * FROM checklist_items WHERE card_id = ? ORDER BY position').all(c.id)) {
-          db.prepare('INSERT INTO checklist_items (card_id, text, checked, position) VALUES (?, ?, 0, ?)').run(newCardId, ci.text, ci.position);
-        }
+// Copy giữ nguyên phạm vi truy cập và các dữ liệu/rule đã hỗ trợ.
+app.post('/api/boards/:id/copy', auth, (req,res) => {
+  const src=db.prepare('SELECT * FROM boards WHERE id=?').get(req.params.id);
+  const newId=db.transaction(()=>{
+    const id=db.prepare('INSERT INTO boards(title,position,background,powerups,visibility,team_id,approval_required) VALUES (?,?,?,?,?,?,?)')
+      .run(String(req.body?.title || src.title+' (bản sao)'),nextPosition('boards','',[]),src.background,src.powerups,'private',src.team_id,src.approval_required).lastInsertRowid;
+    db.prepare('INSERT INTO board_members(board_id,user_id,role) SELECT ?,user_id,role FROM board_members WHERE board_id=?').run(id,src.id);
+    db.prepare("INSERT INTO board_members(board_id,user_id,role) VALUES (?,?,'manager') ON CONFLICT(board_id,user_id) DO UPDATE SET role='manager'").run(id,req.user.id);
+    const labels={},lists={};
+    for(const l of db.prepare('SELECT * FROM labels WHERE board_id=?').all(src.id)) labels[l.id]=db.prepare('INSERT INTO labels(board_id,name,color,position) VALUES (?,?,?,?)').run(id,l.name,l.color,l.position).lastInsertRowid;
+    for(const f of db.prepare('SELECT * FROM board_fields WHERE board_id=?').all(src.id)) db.prepare('INSERT INTO board_fields(board_id,name,type,options,position) VALUES (?,?,?,?,?)').run(id,f.name,f.type,f.options,f.position);
+    for(const l of db.prepare('SELECT * FROM lists WHERE board_id=? AND archived=0 ORDER BY position').all(src.id)) {
+      lists[l.id]=db.prepare('INSERT INTO lists(board_id,title,position,color,wip_limit) VALUES (?,?,?,?,?)').run(id,l.title,l.position,l.color,l.wip_limit).lastInsertRowid;
+      for(const c of db.prepare('SELECT * FROM cards WHERE list_id=? AND archived=0 ORDER BY position').all(l.id)) {
+        if(c.mirror_of) {
+          if(canSeeBoard(req.user,boardIdOfCard(c.mirror_of))) db.prepare('INSERT INTO cards(list_id,title,position,mirror_of) VALUES (?,?,?,?)').run(lists[l.id],c.title,c.position,c.mirror_of);
+        } else cloneCard(c.id,lists[l.id],{keep_template:true,actor_id:req.user.id});
       }
     }
-    for (const r of db.prepare('SELECT * FROM automation_rules WHERE board_id = ?').all(src.id)) {
-      if (!listMap[r.trigger_list_id]) continue;
-      let a = {};
-      try { a = JSON.parse(r.actions); } catch { continue; }
-      if (a.label_id) a.label_id = labelMap[a.label_id] || undefined;
-      db.prepare('INSERT INTO automation_rules (board_id, trigger_list_id, actions) VALUES (?, ?, ?)')
-        .run(newBoardId, listMap[r.trigger_list_id], JSON.stringify(a));
-    }
-    return newBoardId;
-  });
-  const newId = copy();
-  logActivity(newId, null, req.user.id, 'board_created', { title: src.title + ' (bản sao)' });
-  broadcast(null, { type: 'boards-changed' });
-  res.json({ id: newId });
+    db.prepare('UPDATE boards SET review_list_id=?,done_list_id=?,changes_list_id=? WHERE id=?').run(lists[src.review_list_id] || null,lists[src.done_list_id] || null,lists[src.changes_list_id] || null,id);
+    const remap = raw => {
+      const a=JSON.parse(raw);
+      if(a.label_id) a.label_id=labels[a.label_id] || null;
+      if(a.move_list_id) a.move_list_id=lists[a.move_list_id] || null;
+      if(a.archive_done_list_id) a.archive_done_list_id=lists[a.archive_done_list_id] || null;
+      if(a.sort?.list_id) a.sort.list_id=lists[a.sort.list_id] || null;
+      return JSON.stringify(a);
+    };
+    for(const r of db.prepare('SELECT * FROM automation_rules WHERE board_id=?').all(src.id)) if(lists[r.trigger_list_id]) db.prepare('INSERT INTO automation_rules(board_id,trigger_list_id,actions,enabled) VALUES (?,?,?,?)').run(id,lists[r.trigger_list_id],remap(r.actions),r.enabled);
+    for(const r of db.prepare('SELECT * FROM auto_schedules WHERE board_id=?').all(src.id)) db.prepare('INSERT INTO auto_schedules(board_id,cadence,weekday,actions,enabled) VALUES (?,?,?,?,?)').run(id,r.cadence,r.weekday,remap(r.actions),r.enabled);
+    for(const r of db.prepare('SELECT * FROM due_rules WHERE board_id=?').all(src.id)) db.prepare('INSERT INTO due_rules(board_id,trigger,actions,enabled) VALUES (?,?,?,?)').run(id,r.trigger,remap(r.actions),r.enabled);
+    for(const r of db.prepare('SELECT * FROM card_buttons WHERE board_id=?').all(src.id)) db.prepare('INSERT INTO card_buttons(board_id,name,actions,position) VALUES (?,?,?,?)').run(id,r.name,remap(r.actions),r.position);
+    return id;
+  })();
+  logActivity(newId,null,req.user.id,'board_created',{title:src.title+' (bản sao)'});
+  broadcast(null,{type:'boards-changed'});res.json({id:newId});
 });
 
 // Theo dõi cả board: nhận thông báo mọi hoạt động trên thẻ của board
@@ -662,7 +684,7 @@ app.get('/api/boards/:id', auth, (req, res) => {
     SELECT c.* FROM cards c JOIN lists l ON l.id = c.list_id
     WHERE l.board_id = ? AND c.archived = 0 AND l.archived = 0
     ORDER BY c.position, c.id
-  `).all(board.id);
+  `).all(board.id).filter(c=>!c.mirror_of || canSeeBoard(req.user,boardIdOfCard(c.mirror_of)));
   const checklist = db.prepare(`
     SELECT ci.* FROM checklist_items ci
     JOIN cards c ON c.id = ci.card_id JOIN lists l ON l.id = c.list_id
@@ -714,7 +736,9 @@ app.get('/api/boards/:id', auth, (req, res) => {
     SELECT v.card_id, v.field_id, v.value FROM card_field_values v
     JOIN cards c ON c.id = v.card_id JOIN lists l ON l.id = c.list_id WHERE l.board_id = ?
   `).all(board.id);
-  // Thẻ đối xứng (mirror): phủ dữ liệu sống từ thẻ gốc
+  for(const c of cards)c.last_activity=db.prepare('SELECT MAX(created_at) AS latest FROM activity WHERE card_id=?').get(c.id).latest || c.created_at;
+  const mirrorLabels=[];
+  // Thẻ đối xứng chỉ trả dữ liệu khi người xem có quyền trên cả hai bảng.
   for (const c of cards) {
     if (!c.mirror_of) continue;
     const src = db.prepare(`
@@ -723,12 +747,19 @@ app.get('/api/boards/:id', auth, (req, res) => {
     if (src) {
       c.title = src.title;
       c.due_date = src.due_date; c.due_time = src.due_time; c.due_complete = src.due_complete;
-      c.recur = src.recur; c.cover = src.cover.startsWith('url:') ? '' : src.cover;
+      c.recur = src.recur; c.cover = src.cover; c.start_date=src.start_date; c.approval_state=src.approval_state;
+      const sourceLabels=db.prepare('SELECT lb.* FROM labels lb JOIN card_labels cl ON cl.label_id=lb.id WHERE cl.card_id=?').all(src.id);
+      mirrorLabels.push(...sourceLabels);c.source_label_ids=sourceLabels.map(l=>l.id);
+      c.source_members=db.prepare('SELECT cm.user_id,u.name FROM card_members cm JOIN users u ON u.id=cm.user_id WHERE cm.card_id=?').all(src.id);
+      c.source_checklist=db.prepare('SELECT * FROM checklist_items WHERE card_id=? ORDER BY position').all(src.id);
+      c.source_fields=db.prepare('SELECT f.*,v.value FROM card_field_values v JOIN board_fields f ON f.id=v.field_id WHERE v.card_id=?').all(src.id);
+      commentCounts.push({card_id:c.id,n:db.prepare('SELECT COUNT(*) AS n FROM comments WHERE card_id=?').get(src.id).n});
+      attachmentCounts.push({card_id:c.id,n:db.prepare('SELECT COUNT(*) AS n FROM attachments WHERE card_id=?').get(src.id).n});
       c.description = src.description;
       c.src_archived = src.archived;
     } else c.title = '(thẻ gốc đã bị xóa)';
   }
-  res.json({ board, lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches, watchingBoard, schedules, dueRules, cardButtons, boardMembers, fields, fieldValues });
+  res.json({ mirrorLabels, eligibleMembers:db.prepare('SELECT id,name,username,is_admin,disabled FROM users WHERE disabled=0').all().filter(u=>canSeeBoard(u,board.id)), board: {...board, role:boardRole(req.user,board.id)}, boardMemberRoles:db.prepare('SELECT user_id,role FROM board_members WHERE board_id=?').all(board.id), checklistGroups:db.prepare('SELECT g.* FROM checklist_groups g JOIN cards c ON c.id=g.card_id JOIN lists l ON l.id=c.list_id WHERE l.board_id=? ORDER BY g.position,g.id').all(board.id), myListWatches:db.prepare('SELECT lw.list_id FROM list_watchers lw JOIN lists l ON l.id=lw.list_id WHERE lw.user_id=? AND l.board_id=?').all(req.user.id,board.id).map(r=>r.list_id), lists, cards, checklist, commentCounts, attachmentCounts, labels, cardLabels, cardMembers, rules, voteCounts, myVotes, myWatches, watchingBoard, schedules, dueRules, cardButtons, boardMembers, fields, fieldValues });
 });
 
 app.get('/api/boards/:id/archived', auth, (req, res) => {
@@ -738,7 +769,7 @@ app.get('/api/boards/:id/archived', auth, (req, res) => {
     WHERE l.board_id = ? AND c.archived = 1 ORDER BY c.id DESC
   `).all(id);
   const lists = db.prepare('SELECT * FROM lists WHERE board_id = ? AND archived = 1 ORDER BY id DESC').all(id);
-  res.json({ cards, lists });
+  res.json({ cards:cards.filter(c=>canSeeCard(req.user,c.id)), lists });
 });
 
 app.get('/api/boards/:id/activity', auth, (req, res) => {
@@ -748,7 +779,7 @@ app.get('/api/boards/:id/activity', auth, (req, res) => {
     LEFT JOIN cards c ON c.id = a.card_id
     WHERE a.board_id = ? ORDER BY a.id DESC LIMIT 80
   `).all(req.params.id);
-  res.json({ activity: rows });
+  res.json({ activity:rows.filter(a=>!a.card_id || canSeeCard(req.user,a.card_id)) });
 });
 
 /* ---------- Nhãn (theo board, có tên — như Trello) ---------- */
@@ -785,6 +816,8 @@ app.delete('/api/labels/:id', auth, (req, res) => {
 app.put('/api/cards/:id/labels', auth, (req, res) => {
   const cardId = Number(req.params.id);
   const ids = (req.body?.label_ids || []).map(Number);
+  const previous=db.prepare('SELECT label_id FROM card_labels WHERE card_id=?').all(cardId).map(r=>r.label_id).sort();
+  if(JSON.stringify(previous)!==JSON.stringify([...new Set(ids)].sort())) invalidateReview(cardId);
   db.prepare('DELETE FROM card_labels WHERE card_id = ?').run(cardId);
   const ins = db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)');
   for (const id of ids) ins.run(cardId, id);
@@ -803,6 +836,7 @@ app.put('/api/cards/:id/members', auth, (req, res) => {
   for (const id of ids) ins.run(cardId, id);
   const boardId = boardIdOfCard(cardId);
   if (JSON.stringify([...beforeRows].sort()) !== JSON.stringify([...ids].sort())) {
+    invalidateReview(cardId);
     logActivity(boardId, cardId, req.user.id, 'members_changed', { count: ids.length });
     const card = db.prepare('SELECT title FROM cards WHERE id = ?').get(cardId);
     for (const uid of ids.filter(x => !beforeRows.includes(x))) {
@@ -869,11 +903,12 @@ app.delete('/api/lists/:id', auth, (req, res) => {
 app.post('/api/cards', auth, (req, res) => {
   const { list_id, title } = req.body || {};
   if (!list_id || !String(title || '').trim()) return res.status(400).json({ error: 'Thiếu cột hoặc tiêu đề thẻ' });
-  const info = db.prepare('INSERT INTO cards (list_id, title, position) VALUES (?, ?, ?)')
-    .run(list_id, String(title).trim(), nextPosition('cards', 'WHERE list_id = ?', [list_id]));
+  const info = db.prepare('INSERT INTO cards (list_id, title, position, created_by) VALUES (?, ?, ?, ?)')
+    .run(list_id, String(title).trim(), nextPosition('cards', 'WHERE list_id = ?', [list_id]),req.user.id);
+  if (!canManageBoard(req.user,boardIdOfList(list_id))) db.prepare('INSERT INTO card_members(card_id,user_id) VALUES (?,?)').run(info.lastInsertRowid,req.user.id);
   const boardId = boardIdOfList(list_id);
   logActivity(boardId, info.lastInsertRowid, req.user.id, 'card_created', { title: String(title).trim() });
-  for (const uid of boardWatcherIds(boardId)) {
+  for (const uid of new Set([...boardWatcherIds(boardId),...db.prepare('SELECT user_id FROM list_watchers WHERE list_id=?').all(list_id).map(r=>r.user_id)])) {
     pushNotification(uid, req.user.id, 'created', boardId, info.lastInsertRowid, { title: String(title).trim() });
   }
   notifyBoard(boardId);
@@ -885,12 +920,9 @@ function applyRules(cardId, listId, actorId) {
   const rules = db.prepare('SELECT * FROM automation_rules WHERE trigger_list_id = ? AND enabled = 1').all(listId);
   for (const rule of rules) {
     let actions;
-    try { actions = JSON.parse(rule.actions); } catch { continue; }
+    try { actions = JSON.parse(rule.actions); validateActions(actions,rule.board_id); } catch { continue; }
     const applied = [];
-    if (actions.due_complete) {
-      db.prepare('UPDATE cards SET due_complete = 1 WHERE id = ?').run(cardId);
-      applied.push('due_complete');
-    }
+    if (actions.due_complete && completeCard(cardId)) applied.push('due_complete');
     if (actions.label_id) {
       db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)').run(cardId, actions.label_id);
       applied.push('label');
@@ -913,93 +945,54 @@ function applyRules(cardId, listId, actorId) {
   }
 }
 
-app.patch('/api/cards/:id', auth, (req, res) => {
-  const id = Number(req.params.id);
-  const current = db.prepare('SELECT c.*, l.board_id, l.title AS list_title FROM cards c JOIN lists l ON l.id = c.list_id WHERE c.id = ?').get(id);
-  if (!current) return res.status(404).json({ error: 'Thẻ không tồn tại' });
-  const b = req.body || {};
-  const sets = [];
-  const vals = [];
-  if (b.title !== undefined) { sets.push('title = ?'); vals.push(String(b.title).trim()); }
-  if (b.description !== undefined) { sets.push('description = ?'); vals.push(String(b.description)); }
-  if (b.due_date !== undefined) { sets.push('due_date = ?'); vals.push(String(b.due_date)); }
-  if (b.start_date !== undefined) { sets.push('start_date = ?'); vals.push(String(b.start_date)); }
-  if (b.due_time !== undefined) { sets.push('due_time = ?'); vals.push(String(b.due_time)); }
-  if (b.recur !== undefined) { sets.push('recur = ?'); vals.push(['daily', 'weekly', 'monthly'].includes(b.recur) ? b.recur : ''); }
-  if (b.remind !== undefined) { sets.push('remind = ?'); vals.push(['none', '0d', '1d', '2d', '7d'].includes(b.remind) ? b.remind : '1d'); }
-  if (b.due_complete !== undefined) { sets.push('due_complete = ?'); vals.push(b.due_complete ? 1 : 0); }
-  if (b.cover !== undefined) { sets.push('cover = ?'); vals.push(String(b.cover)); }
-  if (b.archived !== undefined) { sets.push('archived = ?'); vals.push(b.archived ? 1 : 0); }
-  if (b.is_template !== undefined) { sets.push('is_template = ?'); vals.push(b.is_template ? 1 : 0); }
-  if (b.list_id !== undefined) { sets.push('list_id = ?'); vals.push(Number(b.list_id)); }
-  if (b.position !== undefined) { sets.push('position = ?'); vals.push(Number(b.position)); }
-  if (sets.length) {
-    vals.push(id);
-    db.prepare(`UPDATE cards SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+app.patch('/api/cards/:id',auth,(req,res)=>{
+  const id=Number(req.params.id), b=req.body || {};
+  const current=db.prepare('SELECT c.*,l.board_id,l.title AS list_title FROM cards c JOIN lists l ON l.id=c.list_id WHERE c.id=?').get(id);
+  for(const field of ['start_date','due_date']) if(b[field]!==undefined && b[field]!=='' && !validDate(b[field])) return res.status(400).json({error:'Ngày không hợp lệ'});
+  if((b.start_date ?? current.start_date) && (b.due_date ?? current.due_date) && (b.start_date ?? current.start_date)>(b.due_date ?? current.due_date))return res.status(400).json({error:'Ngày bắt đầu phải trước hoặc bằng ngày hết hạn'});
+  if(b.due_time!==undefined && b.due_time!=='' && !validTime(b.due_time)) return res.status(400).json({error:'Giờ không hợp lệ'});
+  if(b.position!==undefined && !Number.isFinite(Number(b.position))) return res.status(400).json({error:'Vị trí không hợp lệ'});
+  if(b.title!==undefined && !String(b.title).trim()) return res.status(400).json({error:'Tiêu đề không được trống'});
+  const required=db.prepare('SELECT approval_required FROM boards WHERE id=?').get(current.board_id).approval_required;
+  if(b.due_complete && !current.due_complete && required) return res.status(409).json({error:'Công việc cần gửi duyệt; chỉ người duyệt được xác nhận hoàn thành'});
+  const target=b.list_id===undefined ? current.list_id : Number(b.list_id);
+  const targetBoard=boardIdOfList(target);
+  if(targetBoard!==current.board_id) {requireBoard(req.user,current.board_id,true);requireBoard(req.user,targetBoard,true);}
+  const changed=['title','description','due_date','start_date','due_time','recur'].some(f=>b[f]!==undefined && String(b[f])!==String(current[f]));
+  db.transaction(()=>{
+    if(changed)invalidateReview(id);
+    if(target!==current.list_id) moveCard(id,target,b.position===undefined?undefined:Number(b.position));
+    const sets=[],values=[];
+    for(const f of ['title','description','due_date','start_date','due_time','cover']) if(b[f]!==undefined) {sets.push(f+'=?');values.push(f==='title'?String(b[f]).trim():String(b[f]));}
+    if(b.recur!==undefined) {sets.push('recur=?');values.push(['daily','weekly','monthly'].includes(b.recur)?b.recur:'');}
+    if((b.due_date!==undefined && b.due_date!==current.due_date) || (b.recur!==undefined && b.recur!==current.recur)){sets.push('recur_anchor_day=?');values.push((b.recur ?? current.recur)==='monthly'?(Number((b.due_date ?? current.due_date).slice(8)) || 0):0);}
+    if(b.remind!==undefined) {sets.push('remind=?');values.push(b.remind==='none'||REMIND_MS[b.remind]!==undefined?b.remind:'1d');}
+    for(const f of ['archived','is_template']) if(b[f]!==undefined) {sets.push(f+'=?');values.push(b[f]?1:0);}
+    if(b.position!==undefined) {sets.push('position=?');values.push(Number(b.position));}
+    if(b.due_complete!==undefined && !b.due_complete) {sets.push('due_complete=0');if(current.due_complete) sets.push("approval_state='in_progress'","submitted_by=NULL");}
+    if(sets.length) db.prepare('UPDATE cards SET '+sets.join(',')+' WHERE id=?').run(...values,id);
+    if(['due_date','due_time','recur'].some(f=>b[f]!==undefined && b[f]!==current[f])) db.prepare('DELETE FROM due_rule_applied WHERE card_id=?').run(id);
+    if(b.due_complete && !current.due_complete) completeCard(id);
+    if(target!==current.list_id) applyRules(id,target,req.user.id);
+  })();
+  if(target!==current.list_id) {
+    const title=db.prepare('SELECT title FROM lists WHERE id=?').get(target).title;
+    logActivity(targetBoard,id,req.user.id,'card_moved',{from:current.list_title,to:title});
+    for(const uid of cardRecipientIds(id)) pushNotification(uid,req.user.id,'moved',targetBoard,id,{title:current.title,from:current.list_title,to:title});
   }
-  const boardId = current.board_id;
-  if (b.list_id !== undefined && Number(b.list_id) !== current.list_id) {
-    const toList = db.prepare('SELECT title, board_id FROM lists WHERE id = ?').get(Number(b.list_id));
-    logActivity(toList?.board_id || boardId, id, req.user.id, 'card_moved',
-      { from: current.list_title, to: toList?.title });
-    for (const uid of cardRecipientIds(id)) {
-      pushNotification(uid, req.user.id, 'moved', toList?.board_id || boardId, id,
-        { title: current.title, from: current.list_title, to: toList?.title });
-    }
-    applyRules(id, Number(b.list_id), req.user.id);
-    if (toList && toList.board_id !== boardId) notifyBoard(toList.board_id);
-  }
-  if (b.archived !== undefined) {
-    logActivity(boardId, id, req.user.id, b.archived ? 'card_archived' : 'card_restored', { title: current.title });
-  }
-  if (b.due_complete !== undefined && !!b.due_complete !== !!current.due_complete) {
-    logActivity(boardId, id, req.user.id, b.due_complete ? 'card_completed' : 'card_uncompleted', {});
-    if (b.due_complete) {
-      for (const uid of cardRecipientIds(id)) {
-        pushNotification(uid, req.user.id, 'completed', boardId, id, { title: current.title });
-      }
-      // Hạn định kỳ: hoàn thành xong tự dời hạn sang chu kỳ kế và mở lại thẻ
-      if (current.recur && current.due_date) {
-        const d = new Date(current.due_date);
-        if (current.recur === 'daily') d.setDate(d.getDate() + 1);
-        else if (current.recur === 'weekly') d.setDate(d.getDate() + 7);
-        else d.setMonth(d.getMonth() + 1);
-        const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        db.prepare('UPDATE cards SET due_date = ?, due_complete = 0 WHERE id = ?').run(next, id);
-        db.prepare('UPDATE checklist_items SET checked = 0 WHERE card_id = ?').run(id);
-        logActivity(boardId, id, null, 'rule_applied', { applied: ['🔁 định kỳ: dời hạn sang ' + next] });
-      }
-    }
-  }
-  notifyBoard(boardId);
-  // Board chứa thẻ đối xứng của thẻ này cũng cần vẽ lại
-  for (const r of db.prepare(`
-    SELECT DISTINCT l.board_id FROM cards m JOIN lists l ON l.id = m.list_id WHERE m.mirror_of = ?
-  `).all(id)) notifyBoard(r.board_id);
-  res.json({ ok: true });
+  if(b.archived!==undefined) logActivity(current.board_id,id,req.user.id,b.archived?'card_archived':'card_restored',{title:current.title});
+  if(b.due_complete!==undefined && !!b.due_complete!==!!current.due_complete) logActivity(targetBoard,id,req.user.id,b.due_complete?'card_completed':'card_uncompleted',{});
+  notifyBoard(current.board_id);notifyBoard(targetBoard);
+  for(const r of db.prepare('SELECT DISTINCT l.board_id FROM cards m JOIN lists l ON l.id=m.list_id WHERE m.mirror_of=?').all(id)) notifyBoard(r.board_id);
+  res.json({ok:true,card:db.prepare('SELECT * FROM cards WHERE id=?').get(id)});
 });
 
-app.post('/api/cards/:id/copy', auth, (req, res) => {
-  const id = Number(req.params.id);
-  const src = db.prepare('SELECT * FROM cards WHERE id = ?').get(id);
-  if (!src) return res.status(404).json({ error: 'Thẻ không tồn tại' });
-  const listId = Number(req.body?.list_id || src.list_id);
-  const info = db.prepare(`
-    INSERT INTO cards (list_id, title, description, due_date, due_complete, cover, position)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(listId, src.title, src.description, src.due_date, src.due_complete, src.cover,
-    nextPosition('cards', 'WHERE list_id = ?', [listId]));
-  const newId = info.lastInsertRowid;
-  db.prepare('INSERT INTO card_labels (card_id, label_id) SELECT ?, label_id FROM card_labels WHERE card_id = ?').run(newId, id);
-  db.prepare('INSERT INTO card_members (card_id, user_id) SELECT ?, user_id FROM card_members WHERE card_id = ?').run(newId, id);
-  db.prepare(`
-    INSERT INTO checklist_items (card_id, text, checked, position)
-    SELECT ?, text, 0, position FROM checklist_items WHERE card_id = ?
-  `).run(newId, id);
-  const boardId = boardIdOfList(listId);
-  logActivity(boardId, newId, req.user.id, 'card_copied', { title: src.title });
-  notifyBoard(boardId);
-  res.json({ id: newId });
+app.post('/api/cards/:id/copy',auth,(req,res)=>{
+  const src=db.prepare('SELECT * FROM cards WHERE id=?').get(req.params.id);
+  const listId=Number(req.body?.list_id || src.list_id);
+  if(boardIdOfList(listId)!==boardIdOfCard(src.id)) {requireBoard(req.user,boardIdOfCard(src.id),true);requireBoard(req.user,boardIdOfList(listId),true);}
+  const id=cloneCard(src.id,listId,{...(req.body || {}),actor_id:req.user.id});
+  logActivity(boardIdOfList(listId),id,req.user.id,'card_copied',{title:src.title});notifyBoard(boardIdOfList(listId));res.json({id});
 });
 
 app.delete('/api/cards/:id', auth, (req, res) => {
@@ -1029,6 +1022,7 @@ app.post('/api/cards/:id/attachments', auth, (req, res) => {
   const url = String(req.body?.url || '').trim();
   if (!/^https?:\/\//.test(url)) return res.status(400).json({ error: 'Cần đường dẫn http(s) hợp lệ' });
   const name = String(req.body?.name || '').trim() || url.replace(/^https?:\/\//, '').slice(0, 60);
+  invalidateReview(cardId);
   const info = db.prepare('INSERT INTO attachments (card_id, url, name) VALUES (?, ?, ?)').run(cardId, url, name);
   const boardId = boardIdOfCard(cardId);
   logActivity(boardId, cardId, req.user.id, 'attachment_added', { name });
@@ -1038,6 +1032,7 @@ app.post('/api/cards/:id/attachments', auth, (req, res) => {
 
 app.delete('/api/attachments/:id', auth, (req, res) => {
   const row = db.prepare('SELECT card_id FROM attachments WHERE id = ?').get(req.params.id);
+  if(row) invalidateReview(row.card_id);
   db.prepare('DELETE FROM attachments WHERE id = ?').run(req.params.id);
   if (row) notifyBoard(boardIdOfCard(row.card_id));
   res.json({ ok: true });
@@ -1045,60 +1040,7 @@ app.delete('/api/attachments/:id', auth, (req, res) => {
 
 /* ---------- Checklist & bình luận ---------- */
 
-app.post('/api/cards/:id/checklist', auth, (req, res) => {
-  const cardId = Number(req.params.id);
-  const text = String(req.body?.text || '').trim();
-  if (!text) return res.status(400).json({ error: 'Thiếu nội dung' });
-  const info = db.prepare('INSERT INTO checklist_items (card_id, text, position) VALUES (?, ?, ?)')
-    .run(cardId, text, nextPosition('checklist_items', 'WHERE card_id = ?', [cardId]));
-  notifyBoard(boardIdOfCard(cardId));
-  res.json({ id: info.lastInsertRowid });
-});
-
-app.patch('/api/checklist/:id', auth, (req, res) => {
-  const item = db.prepare('SELECT card_id FROM checklist_items WHERE id = ?').get(req.params.id);
-  if (!item) return res.status(404).json({ error: 'Không tồn tại' });
-  const { text, checked } = req.body || {};
-  if (text !== undefined) db.prepare('UPDATE checklist_items SET text = ? WHERE id = ?').run(String(text).trim(), req.params.id);
-  if (checked !== undefined) db.prepare('UPDATE checklist_items SET checked = ? WHERE id = ?').run(checked ? 1 : 0, req.params.id);
-  notifyBoard(boardIdOfCard(item.card_id));
-  res.json({ ok: true });
-});
-
-app.delete('/api/checklist/:id', auth, (req, res) => {
-  const item = db.prepare('SELECT card_id FROM checklist_items WHERE id = ?').get(req.params.id);
-  db.prepare('DELETE FROM checklist_items WHERE id = ?').run(req.params.id);
-  if (item) notifyBoard(boardIdOfCard(item.card_id));
-  res.json({ ok: true });
-});
-
-app.get('/api/cards/:id/comments', auth, (req, res) => {
-  const comments = db.prepare(`
-    SELECT cm.id, cm.text, cm.created_at, u.name AS author FROM comments cm
-    LEFT JOIN users u ON u.id = cm.user_id WHERE cm.card_id = ? ORDER BY cm.id
-  `).all(req.params.id);
-  res.json({ comments });
-});
-
-app.post('/api/cards/:id/comments', auth, (req, res) => {
-  const text = String(req.body?.text || '').trim();
-  if (!text) return res.status(400).json({ error: 'Bình luận trống' });
-  const cardId = Number(req.params.id);
-  db.prepare('INSERT INTO comments (card_id, user_id, text) VALUES (?, ?, ?)').run(cardId, req.user.id, text);
-  const boardId = boardIdOfCard(cardId);
-  logActivity(boardId, cardId, req.user.id, 'comment_added', { text: text.slice(0, 80) });
-  const cardTitle = db.prepare('SELECT title FROM cards WHERE id = ?').get(cardId)?.title;
-  const mentioned = new Set(mentionedUserIds(text));
-  for (const uid of mentioned) {
-    pushNotification(uid, req.user.id, 'mention', boardId, cardId, { title: cardTitle, text: text.slice(0, 80) });
-  }
-  for (const uid of cardRecipientIds(cardId)) {
-    if (!mentioned.has(uid)) pushNotification(uid, req.user.id, 'comment', boardId, cardId, { title: cardTitle, text: text.slice(0, 80) });
-  }
-  notifyBoard(boardId);
-  broadcast(boardId, { type: 'comments-changed', cardId });
-  res.json({ ok: true });
-});
+registerWorkRoutes(app,{auth,adminOnly,notifyBoard,logActivity,pushNotification,broadcast,completeCard,cardRecipientIds});
 
 /* ---------- Automation rules ---------- */
 
@@ -1186,14 +1128,16 @@ app.post('/api/cards/:id/apply-button/:buttonId', auth, (req, res) => {
   if (!btn || !card) return res.status(404).json({ error: 'Không tồn tại' });
   let a = {};
   try { a = JSON.parse(btn.actions); } catch {}
+  if(a.complete && db.prepare('SELECT approval_required FROM boards WHERE id=?').get(boardIdOfCard(cardId)).approval_required) return res.status(409).json({error:'Cần gửi duyệt; nút tự động không được bỏ qua duyệt'});
   const applied = [];
   if (a.label_id) { db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)').run(cardId, Number(a.label_id)); applied.push('label'); }
-  if (a.complete) { db.prepare('UPDATE cards SET due_complete = 1 WHERE id = ?').run(cardId); applied.push('complete'); }
+  if (a.complete) { if(!completeCard(cardId)) return res.status(409).json({error:'Cần gửi duyệt; tự động hóa không được bỏ qua duyệt'}); applied.push('complete'); }
   if (a.due_shift_days !== undefined && a.due_shift_days !== null && a.due_shift_days !== '') {
     const base = card.due_date ? new Date(card.due_date) : new Date();
     base.setDate(base.getDate() + Number(a.due_shift_days));
     const d = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
     db.prepare('UPDATE cards SET due_date = ? WHERE id = ?').run(d, cardId);
+    db.prepare('DELETE FROM due_rule_applied WHERE card_id=?').run(cardId);
     applied.push('due');
   }
   if (a.move_list_id) {
@@ -1215,7 +1159,7 @@ app.post('/api/cards/:id/merge', auth, (req, res) => {
   const dstId = Number(req.body?.target_id);
   const src = db.prepare('SELECT * FROM cards WHERE id = ?').get(srcId);
   const dst = db.prepare('SELECT * FROM cards WHERE id = ?').get(dstId);
-  if (!src || !dst || srcId === dstId) return res.status(400).json({ error: 'Thẻ nguồn/đích không hợp lệ' });
+  if (!src || !dst || srcId === dstId || src.mirror_of || dst.mirror_of) return res.status(400).json({ error: 'Thẻ nguồn/đích không hợp lệ' });
   const merge = db.transaction(() => {
     if (src.description) {
       const d = dst.description ? dst.description + '\n\n— Hợp nhất từ "' + src.title + '":\n' + src.description
@@ -1225,12 +1169,21 @@ app.post('/api/cards/:id/merge', auth, (req, res) => {
     if (src.due_date && !dst.due_date) {
       db.prepare('UPDATE cards SET due_date = ? WHERE id = ?').run(src.due_date, dstId);
     }
-    db.prepare('UPDATE checklist_items SET card_id = ? WHERE card_id = ?').run(dstId, srcId);
-    db.prepare('UPDATE comments SET card_id = ? WHERE card_id = ?').run(dstId, srcId);
-    db.prepare('UPDATE attachments SET card_id = ? WHERE card_id = ?').run(dstId, srcId);
-    db.prepare('INSERT OR IGNORE INTO card_labels (card_id, label_id) SELECT ?, label_id FROM card_labels WHERE card_id = ?').run(dstId, srcId);
-    db.prepare('INSERT OR IGNORE INTO card_members (card_id, user_id) SELECT ?, user_id FROM card_members WHERE card_id = ?').run(dstId, srcId);
-    db.prepare('INSERT OR IGNORE INTO card_watchers (card_id, user_id) SELECT ?, user_id FROM card_watchers WHERE card_id = ?').run(dstId, srcId);
+    for(const g of db.prepare('SELECT * FROM checklist_groups WHERE card_id=? ORDER BY position').all(srcId)) {
+      const gid=db.prepare('INSERT INTO checklist_groups(card_id,title,position) VALUES (?,?,?)').run(dstId,g.title,nextPosition('checklist_groups','WHERE card_id=?',[dstId])).lastInsertRowid;
+      db.prepare('INSERT INTO checklist_items(card_id,group_id,text,checked,position,user_id,due_date,due_time) SELECT ?,?,text,checked,position,user_id,due_date,due_time FROM checklist_items WHERE group_id=?').run(dstId,gid,g.id);
+    }
+    for(const cm of db.prepare('SELECT * FROM comments WHERE card_id=?').all(srcId)) {
+      const cid=db.prepare('INSERT INTO comments(card_id,user_id,text,created_at,edited_at) VALUES (?,?,?,?,?)').run(dstId,cm.user_id,cm.text,cm.created_at,cm.edited_at).lastInsertRowid;
+      db.prepare('INSERT INTO comment_reactions(comment_id,user_id,emoji) SELECT ?,user_id,emoji FROM comment_reactions WHERE comment_id=?').run(cid,cm.id);
+    }
+    db.prepare('INSERT INTO attachments(card_id,url,name,created_at) SELECT ?,url,name,created_at FROM attachments WHERE card_id=?').run(dstId,srcId);
+    for(const table of ['card_labels','card_members','card_watchers','card_votes']) {
+      const column=table==='card_labels'?'label_id':'user_id';
+      db.prepare(`INSERT OR IGNORE INTO ${table}(card_id,${column}) SELECT ?,${column} FROM ${table} WHERE card_id=?`).run(dstId,srcId);
+    }
+    db.prepare('INSERT OR IGNORE INTO card_field_values(card_id,field_id,value) SELECT ?,field_id,value FROM card_field_values WHERE card_id=?').run(dstId,srcId);
+    invalidateReview(dstId);
     db.prepare('UPDATE cards SET archived = 1 WHERE id = ?').run(srcId);
   });
   merge();
@@ -1253,11 +1206,9 @@ app.get('/api/search', auth, (req, res) => {
   const cards = db.prepare(`
     SELECT c.id, c.title, c.due_date, l.title AS list_title, b.title AS board_title, b.id AS board_id
     FROM cards c JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
-    WHERE c.archived = 0 AND (c.title LIKE ? OR c.description LIKE ?)
-      AND (b.visibility != 'private' OR ? = 1
-        OR EXISTS(SELECT 1 FROM board_members m WHERE m.board_id = b.id AND m.user_id = ?))
-    ORDER BY c.id DESC LIMIT 30
-  `).all(like, like, req.user.is_admin ? 1 : 0, req.user.id);
+    WHERE c.archived=0 AND l.archived=0 AND b.closed=0 AND (c.title LIKE ? OR c.description LIKE ?)
+    ORDER BY c.id DESC
+  `).all(like,like).filter(c=>canSeeCard(req.user,c.id)).slice(0,30);
   res.json({ cards });
 });
 
@@ -1308,8 +1259,11 @@ app.post('/api/cards/:id/upload', auth,
     res.json({ id: info.lastInsertRowid, url });
   });
 
-app.get('/u/:file', (req, res) => {
+app.get('/u/:file', auth, (req, res) => {
   const file = String(req.params.file).replace(/[^a-z0-9.]/gi, '');
+  const url = '/u/' + file;
+  const accessible=canReadUpload(req.user,url);
+  if (!accessible) return res.status(403).end();
   const full = path.join(UPLOAD_DIR, file);
   if (!fs.existsSync(full)) return res.status(404).end();
   const ext = file.split('.').pop().toLowerCase();
@@ -1320,7 +1274,7 @@ app.get('/u/:file', (req, res) => {
     res.set('Content-Type', 'application/octet-stream');
     res.set('Content-Disposition', 'attachment');
   }
-  res.set('Cache-Control', 'private, max-age=86400');
+  res.set('Cache-Control', 'private, no-store');
   res.sendFile(full);
 });
 
@@ -1412,23 +1366,27 @@ app.get('/api/planner', auth, (req, res) => {
     SELECT ps.card_id, ps.date, c.title, c.due_date, c.due_complete, l.title AS list_title, l.board_id, b.title AS board_title
     FROM planner_slots ps
     JOIN cards c ON c.id = ps.card_id JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
-    WHERE ps.user_id = ? AND c.archived = 0
-  `).all(req.user.id);
+    WHERE ps.user_id = ? AND c.archived=0 AND l.archived=0 AND b.closed=0
+  `).all(req.user.id).filter(c=>canSeeCard(req.user,c.card_id ?? c.id));
   const myCards = db.prepare(`
     SELECT c.id, c.title, c.due_date, c.due_complete, l.title AS list_title, l.board_id, b.title AS board_title
     FROM card_members cm
     JOIN cards c ON c.id = cm.card_id JOIN lists l ON l.id = c.list_id JOIN boards b ON b.id = l.board_id
     WHERE cm.user_id = ? AND c.archived = 0 AND l.archived = 0 AND b.closed = 0 AND c.due_complete = 0
     ORDER BY CASE WHEN c.due_date = '' THEN 1 ELSE 0 END, c.due_date, c.id DESC LIMIT 100
-  `).all(req.user.id);
+  `).all(req.user.id).filter(c=>canSeeCard(req.user,c.card_id ?? c.id));
   const inbox = db.prepare("SELECT * FROM inbox_items WHERE user_id = ? AND date != '' ORDER BY date").all(req.user.id);
-  res.json({ slots, myCards, inbox });
+  const planned=new Set(slots.map(s=>s.card_id));
+  const dueCards=myCards.filter(c=>c.due_date && !planned.has(c.id)).map(c=>({...c,card_id:c.id,date:c.due_date,automatic:true}));
+  res.json({ slots:[...slots,...dueCards], myCards, inbox });
 });
 
 app.put('/api/planner', auth, (req, res) => {
   const cardId = Number(req.body?.card_id);
   const date = String(req.body?.date || '');
-  if (!cardId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Cần thẻ và ngày hợp lệ' });
+  if (!cardId || !validDate(date)) return res.status(400).json({ error: 'Cần thẻ và ngày hợp lệ' });
+  requireBoard(req.user,boardIdOfCard(cardId));
+  if(!canSeeCard(req.user,cardId))return res.status(403).json({error:'Bạn chưa được cấp quyền vào thẻ gốc'});
   db.prepare('INSERT INTO planner_slots (user_id, card_id, date) VALUES (?, ?, ?) ON CONFLICT(user_id, card_id) DO UPDATE SET date = excluded.date')
     .run(req.user.id, cardId, date);
   res.json({ ok: true });
@@ -1505,10 +1463,11 @@ wss.on('connection', (socket, req) => {
   if (!user) { socket.close(4001, 'unauthorized'); return; }
   socket.boardId = null;
   socket.userId = user.id;
+  socket.token = url.searchParams.get('token');
   socket.on('message', raw => {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type === 'watch') socket.boardId = msg.boardId ? Number(msg.boardId) : null;
+      if (msg.type === 'watch') socket.boardId = msg.boardId && canSeeBoard(getSessionUser(socket.token),Number(msg.boardId)) ? Number(msg.boardId) : null;
     } catch {}
   });
 });
@@ -1517,7 +1476,9 @@ function broadcast(boardId, payload) {
   const msg = JSON.stringify(payload);
   for (const client of wss.clients) {
     if (client.readyState !== 1) continue;
-    if (boardId === null || client.boardId === boardId) client.send(msg);
+    const user = getSessionUser(client.token);
+    if (!user) { client.close(4001,'unauthorized'); continue; }
+    if (boardId === null || (client.boardId === boardId && canSeeBoard(user,boardId))) client.send(msg);
   }
 }
 
@@ -1528,4 +1489,6 @@ function broadcastUser(userId, payload) {
   }
 }
 
-server.listen(PORT, () => console.log(`Kanban server chạy tại http://localhost:${PORT}`));
+app.use((error,req,res,next)=>{ console.error(error.message); res.status(error.status || 500).json({error:error.status?error.message:'Có lỗi xử lý dữ liệu'}); });
+export { app, server, wss, scanDueNotifications, runDueRules, runScheduledAutomations };
+if(process.env.NODE_ENV!=='test') server.listen(PORT, process.env.HOST || '0.0.0.0', () => console.log(`Kanban server chạy tại http://localhost:${PORT}`));

@@ -1,5 +1,14 @@
 # Tình trạng dự án — Bảng công việc công ty (Trello nội bộ)
 
+## Cập nhật Codex — 26/10/2026 (đang chạy thử, chưa đưa lên production)
+
+Bản web/API mới đã thêm phân quyền bảng/team/leader, quy trình gửi duyệt/yêu cầu sửa/duyệt hoàn thành, checklist nhiều nhóm có người và hạn, sửa bình luận/phản ứng, sao chép dữ liệu đầy đủ hơn, công cụ thao tác cột, tổng quan theo team và các sửa lỗi lịch/Planner/nhắc hạn/công việc lặp. Đã qua 20 nhóm kiểm thử trên DB riêng và kiểm tra giao diện bằng Chrome. Đây là nền web/API cho mobile; chưa phải app iOS native.
+
+**Cần chuẩn bị quyền truy cập trước production:** phiên bản mới yêu cầu cấp quyền cho mọi bảng; không còn tự cho mọi nhân viên xem bảng workspace. Chi tiết, kế hoạch cấp quyền và quy trình backup/cập nhật nằm tại [trien-khai-phan-quyen-va-duyet.md](trien-khai-phan-quyen-va-duyet.md).
+
+Máy Mac đang thiết lập đăng nhập GitHub CLI và SSH production theo lựa chọn của chủ dự án. Chưa thực hiện push/deploy từ máy này ở thời điểm ghi cập nhật. Các mô tả “đã ngang Trello”, “75 API đủ mobile” và mô hình phân quyền hai tầng trong tài liệu bàn giao cũ là tình trạng trước đợt kiểm tra này, không phải kết luận của bản hiện tại.
+
+
 *Cập nhật: 15/10/2026. File này để bất kỳ phiên Claude nào (local/VPS) hoặc thành viên đội
 mở ra là nắm được toàn bộ, không cần đọc lại lịch sử chat.*
 

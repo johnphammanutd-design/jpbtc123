@@ -316,6 +316,69 @@ CREATE TABLE IF NOT EXISTS push_subs (
 );
 `);
 
+/* ---------- Migration v8: phân quyền công ty, duyệt việc và checklist nâng cao ---------- */
+if (!hasColumn('board_members', 'role')) db.exec("ALTER TABLE board_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+if (!hasColumn('boards', 'team_id')) db.exec('ALTER TABLE boards ADD COLUMN team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL');
+if (!hasColumn('boards', 'approval_required')) db.exec('ALTER TABLE boards ADD COLUMN approval_required INTEGER NOT NULL DEFAULT 1');
+if (!hasColumn('cards', 'created_by')) db.exec('ALTER TABLE cards ADD COLUMN created_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+if (!hasColumn('cards', 'reviewer_id')) db.exec('ALTER TABLE cards ADD COLUMN reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+if (!hasColumn('cards', 'submitted_by')) db.exec('ALTER TABLE cards ADD COLUMN submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+if (!hasColumn('cards', 'approval_state')) {
+  db.exec("ALTER TABLE cards ADD COLUMN approval_state TEXT NOT NULL DEFAULT 'in_progress'");
+  db.exec("UPDATE cards SET approval_state = 'approved' WHERE due_complete = 1");
+}
+if (!hasColumn('comments', 'edited_at')) db.exec("ALTER TABLE comments ADD COLUMN edited_at TEXT NOT NULL DEFAULT ''");
+for (const [column,title] of [['review_list_id','Chờ duyệt'],['done_list_id','Hoàn thành'],['changes_list_id','Đang làm']]) {
+  if (!hasColumn('boards', column)) {
+    db.exec(`ALTER TABLE boards ADD COLUMN ${column} INTEGER REFERENCES lists(id) ON DELETE SET NULL`);
+    db.prepare(`UPDATE boards SET ${column}=(SELECT id FROM lists WHERE board_id=boards.id AND title=? AND archived=0 ORDER BY position,id LIMIT 1)`).run(title);
+  }
+}
+if (!hasColumn('cards', 'submitted_from_list_id')) db.exec('ALTER TABLE cards ADD COLUMN submitted_from_list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL');
+if (!hasColumn('cards', 'recur_anchor_day')) db.exec('ALTER TABLE cards ADD COLUMN recur_anchor_day INTEGER NOT NULL DEFAULT 0');
+db.exec(`
+CREATE TABLE IF NOT EXISTS teams (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS team_members (
+  team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('member','leader')),
+  PRIMARY KEY(team_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS card_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, action TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS checklist_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT 'Checklist', position REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS comment_reactions (
+  comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, emoji TEXT NOT NULL,
+  PRIMARY KEY(comment_id,user_id,emoji)
+);
+CREATE TABLE IF NOT EXISTS list_watchers (
+  list_id INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, PRIMARY KEY(list_id,user_id)
+);
+`);
+if (!hasColumn('checklist_items', 'group_id')) db.exec('ALTER TABLE checklist_items ADD COLUMN group_id INTEGER REFERENCES checklist_groups(id) ON DELETE CASCADE');
+if (!hasColumn('checklist_items', 'user_id')) db.exec('ALTER TABLE checklist_items ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+if (!hasColumn('checklist_items', 'due_date')) db.exec("ALTER TABLE checklist_items ADD COLUMN due_date TEXT NOT NULL DEFAULT ''");
+if (!hasColumn('checklist_items', 'due_time')) db.exec("ALTER TABLE checklist_items ADD COLUMN due_time TEXT NOT NULL DEFAULT ''");
+// Preserve existing checklist items; safe to run again on every boot.
+db.transaction(() => {
+  for (const row of db.prepare('SELECT DISTINCT card_id FROM checklist_items WHERE group_id IS NULL').all()) {
+    let group = db.prepare('SELECT id FROM checklist_groups WHERE card_id = ? ORDER BY position LIMIT 1').get(row.card_id);
+    if (!group) group = { id: db.prepare("INSERT INTO checklist_groups(card_id,title,position) VALUES (?,'Checklist',1024)").run(row.card_id).lastInsertRowid };
+    db.prepare('UPDATE checklist_items SET group_id = ? WHERE card_id = ? AND group_id IS NULL').run(group.id, row.card_id);
+  }
+})();
+
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');

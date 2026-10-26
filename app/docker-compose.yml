@@ -13,6 +13,7 @@ services:
       # `docker compose up -d` lại. Để trống = nút AI tự ẩn.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-haiku-5-5}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
     volumes:
       - kanban-data:/data
 
