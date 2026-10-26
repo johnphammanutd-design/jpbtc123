@@ -1,6 +1,7 @@
 import SwiftUI
 import QuickLook
 import UniformTypeIdentifiers
+import PhotosUI
 
 struct CardScreen: View {
     @EnvironmentObject var state: AppState
@@ -20,6 +21,9 @@ struct CardScreen: View {
     @State private var comment = ""
     @State private var busy = false
     @State private var importing = false
+    @State private var pickingPhoto = false
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoBusy = false
     @State private var preview: URL?
     @State private var aiResult: String?
     @State private var aiEnabled = false
@@ -52,6 +56,8 @@ struct CardScreen: View {
         .sheet(item: $edit) { EditSheet($0) }
         .sheet(item: $destinationRequest) { DestinationSheet($0) }
         .quickLookPreview($preview)
+        .photosPicker(isPresented: $pickingPhoto, selection: $selectedPhoto, matching: .images, preferredItemEncoding: .compatible)
+        .task(id: selectedPhoto) { await uploadSelectedPhoto() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
             switch result { case .success(let url): upload(url); case .failure(let e): error = e.localizedDescription }
         }
@@ -90,9 +96,9 @@ struct CardScreen: View {
         if c.flag("archived") {
             Button("Khôi phục thẻ") { run { _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", ["archived": .bool(false)]) } }.buttonStyle(.borderedProminent)
         } else if active, c.text("approval_state") == "pending", permission.canDecide {
-            HStack { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy)
+            HStack { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy || photoBusy)
         } else if permission.canSubmit {
-            Button("Gửi duyệt") { reviewAction("submit") }.buttonStyle(.borderedProminent).disabled(busy)
+            Button("Gửi duyệt") { reviewAction("submit") }.buttonStyle(.borderedProminent).disabled(busy || photoBusy)
         }
     }
     func reviewAction(_ action: String) {
@@ -121,13 +127,14 @@ struct CardScreen: View {
         }
         checklist(c, s)
         Surface {
-            HStack { Text("Đính kèm").font(.headline); Spacer(); Menu { Button("Thêm đường dẫn") { edit = EditRequest(title: "Thêm đường dẫn", fields: [.text("name", "Tên đính kèm"), .text("url", "Đường dẫn https://", required: true)]) { v in _ = try await state.mutate("/api/cards/\(resolvedID)/attachments", "POST", v) } }; Button("Chọn tệp hoặc ảnh") { importing = true } } label: { Image(systemName: "plus").accessibilityLabel("Thêm đính kèm") } }
+            HStack { Text("Đính kèm").font(.headline); Spacer(); Menu { Button("Thêm đường dẫn") { edit = EditRequest(title: "Thêm đường dẫn", fields: [.text("name", "Tên đính kèm"), .text("url", "Đường dẫn https://", required: true)]) { v in _ = try await state.mutate("/api/cards/\(resolvedID)/attachments", "POST", v) } }; Button("Chọn từ Photos") { pickingPhoto = true }; Button("Chọn tệp trong Files") { importing = true } } label: { Image(systemName: "plus").accessibilityLabel("Thêm đính kèm") }.disabled(busy || photoBusy) }
             if attachments.isEmpty { Text("Chưa có tệp hoặc đường dẫn").font(.caption).foregroundStyle(.secondary) }
             ForEach(attachments) { a in HStack {
                 Button { openAttachment(a) } label: { Label(a.text("name"), systemImage: "paperclip").lineLimit(2).multilineTextAlignment(.leading) }; Spacer()
                 Menu { if a.text("url").hasPrefix("/u/") { Button("Dùng làm ảnh bìa") { run { _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", ["cover": .string("url:" + a.text("url"))]) } } }; DestructiveButton(title: "Xóa đính kèm") { run { _ = try await state.mutate("/api/attachments/\(a.id)", "DELETE") } } } label: { Image(systemName: "ellipsis") }
             } }
-            if busy { ProgressView() }
+            if busy || photoBusy { ProgressView(photoBusy ? "Đang xử lý và tải ảnh…" : "Đang tải tệp…") }
+            if photoBusy { Text("Ảnh được tối ưu dung lượng trước khi tải lên.").font(.caption).foregroundStyle(.secondary) }
         }
         if !s.rows("fields").isEmpty { Surface { HStack { Text("Trường tùy chỉnh").font(.headline); Spacer(); Button("Sửa") { customFields(c, s) } }; ForEach(s.rows("fields")) { f in let value = s.rows("fieldValues").first { $0.number("card_id") == c.id && $0.number("field_id") == f.id }?.text("value") ?? ""; LabeledContent(f.title, value: f.text("type") == "checkbox" ? (value == "1" ? "Đã đánh dấu" : "Chưa đánh dấu") : (value.isEmpty ? "—" : value)) } } }
         if s.json["board"]["powerups"].parsed["vote"].flag { Surface { Button { run { _ = try await state.mutate("/api/cards/\(resolvedID)/vote") } } label: { Label("Bình chọn · \(s.count("voteCounts", card: c.id))" + (s.json["myVotes"].array.map(\.int).contains(c.id) ? " · Bạn đã chọn" : ""), systemImage: "hand.thumbsup") } } }
@@ -238,6 +245,21 @@ struct CardScreen: View {
         }
     }
     func run(_ op: @escaping () async throws -> Void) { guard !busy else { return }; busy = true; Task { defer { busy = false }; do { try await op(); await reload() } catch { self.error = error.localizedDescription } } }
+    func uploadSelectedPhoto() async {
+        guard let selectedPhoto else { return }
+        photoBusy = true; error = nil
+        defer { photoBusy = false; self.selectedPhoto = nil }
+        do {
+            guard let imported = try await selectedPhoto.loadTransferable(type: ImportedPhoto.self) else { throw APIError.server(400, "Không tải được ảnh đã chọn.") }
+            defer { imported.remove() }
+            try Task.checkCancellation()
+            let image = try await PhotoPreparation.shared.prepare(url: imported.url, maximumBytes: 25 * 1024 * 1024)
+            try Task.checkCancellation()
+            _ = try await state.upload("/api/cards/\(resolvedID)/upload", data: image.data, name: image.filename)
+            state.revision += 1
+            await reload()
+        } catch is CancellationError {} catch { self.error = error.localizedDescription }
+    }
     func upload(_ url: URL) {
         run {
             let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }

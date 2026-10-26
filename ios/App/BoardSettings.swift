@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
 
 struct BoardSettings: View {
     @EnvironmentObject var state: AppState
@@ -8,6 +9,9 @@ struct BoardSettings: View {
     @State private var snapshot: BoardSnapshot?
     @State private var edit: EditRequest?
     @State private var importing = false
+    @State private var pickingPhoto = false
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoBusy = false
     @State private var exportURL: URL?
     @State private var error: String?
     var body: some View {
@@ -43,7 +47,9 @@ struct BoardSettings: View {
                     Section("Giao diện & thao tác") {
                         Button("Đổi tên bảng", systemImage: "pencil") { edit = EditRequest(title: "Đổi tên bảng", fields: [.text("title", "Tên bảng", s.board.title, required: true)]) { v in _ = try await state.mutate("/api/boards/\(boardID)", "PATCH", v) } }
                         Button("Màu nền bảng", systemImage: "paintpalette") { edit = EditRequest(title: "Phông nền", fields: [.pick("background", "Màu nền", [("ocean", "Đại dương"), ("forest", "Rừng xanh"), ("sunset", "Hoàng hôn"), ("violet", "Tím")], s.board.text("background"))]) { v in _ = try await state.mutate("/api/boards/\(boardID)", "PATCH", v) } }
-                        Button("Tải ảnh nền", systemImage: "photo") { importing = true }
+                        Button("Chọn ảnh nền từ Photos", systemImage: "photo.on.rectangle") { pickingPhoto = true }.disabled(photoBusy)
+                        Button("Chọn ảnh nền từ Files", systemImage: "folder") { importing = true }.disabled(photoBusy)
+                        if photoBusy { ProgressView("Đang tải ảnh nền…") }
                         Button("Sao chép bảng", systemImage: "doc.on.doc") { edit = EditRequest(title: "Sao chép bảng", fields: [.text("title", "Tên bảng mới", s.board.title + " · Bản sao", required: true)]) { v in _ = try await state.mutate("/api/boards/\(boardID)/copy", "POST", v) } }
                         Button(s.board.flag("closed") ? "Mở lại bảng" : "Đóng bảng", systemImage: "archivebox") { state.handle { _ = try await state.mutate("/api/boards/\(boardID)", "PATCH", ["closed": .bool(!s.board.flag("closed"))]); dismiss() } }
                         if state.isDirector { DestructiveButton(title: "Xóa bảng vĩnh viễn", detail: "Toàn bộ cột, thẻ và dữ liệu trong bảng sẽ bị xóa.") { state.handle { _ = try await state.mutate("/api/boards/\(boardID)", "DELETE"); dismiss() } } }
@@ -54,6 +60,8 @@ struct BoardSettings: View {
         }.navigationTitle("Menu bảng").navigationBarTitleDisplayMode(.inline)
         .task(id: state.revision) { do { let data = try await state.call("/api/boards/\(boardID)"); try Task.checkCancellation(); snapshot = BoardSnapshot(data); error = nil } catch is CancellationError {} catch { snapshot = nil; self.error = error.localizedDescription } }
         .sheet(item: $edit) { EditSheet($0) }
+        .photosPicker(isPresented: $pickingPhoto, selection: $selectedPhoto, matching: .images, preferredItemEncoding: .compatible)
+        .task(id: selectedPhoto) { await uploadBackgroundPhoto() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.image]) { result in
             if case .success(let url) = result { state.handle {
                 let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
@@ -61,6 +69,21 @@ struct BoardSettings: View {
                 _ = try await state.upload("/api/boards/\(boardID)/background", data: Data(contentsOf: url), name: url.lastPathComponent); state.revision += 1
             } }
         }
+    }
+    func uploadBackgroundPhoto() async {
+        guard let selectedPhoto else { return }
+        photoBusy = true; error = nil
+        defer { photoBusy = false; self.selectedPhoto = nil }
+        do {
+            guard let imported = try await selectedPhoto.loadTransferable(type: ImportedPhoto.self) else { throw APIError.server(400, "Không tải được ảnh đã chọn.") }
+            defer { imported.remove() }
+            try Task.checkCancellation()
+            let image = try await PhotoPreparation.shared.prepare(url: imported.url, maximumBytes: 10 * 1024 * 1024)
+            try Task.checkCancellation()
+            _ = try await state.upload("/api/boards/\(boardID)/background", data: image.data, name: image.filename)
+            state.revision += 1
+            try await state.refresh()
+        } catch is CancellationError {} catch { self.error = error.localizedDescription }
     }
     func boardMembers(_ s: BoardSnapshot) {
         let roles = s.rows("boardMemberRoles")

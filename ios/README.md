@@ -36,7 +36,7 @@ TestFlight và phát hành có chữ ký cho nhiều nhân viên cần chuẩn b
 2. Thông báo trong app có dữ liệu thật; **push khi app đóng chưa có**. Backend hiện có Web Push, cần thêm APNs cho native và cấu hình Apple để hoàn thành mục này. Nhắc hạn không được hứa sẽ hiện ở nền iOS khi chưa làm bước đó.
 3. Cần mạng để xem/lưu, chưa có bộ nhớ đệm ngoại tuyến hoặc hàng đợi đồng bộ.
 4. Chia sẻ dùng liên kết web `#c/ID`; app cũng xử lý `kairetic://card/ID`. Universal Links HTTPS chưa được cấu hình.
-5. Đợt đối chiếu đã thêm bộ lọc nhiều người/nhiều nhãn theo một/tất cả lựa chọn, lọc hạn và hoạt động, thu gọn/mở rộng tất cả cột. “Việc của tôi” đã lấy toàn bộ thẻ được giao trên các bảng đang mở, có lựa chọn đang làm/đã xong/tất cả, bỏ giới hạn 100 của Planner. Chọn ảnh riêng từ Photos, share extension và một số thao tác sắp xếp nâng cao vẫn cần hoàn thiện.
+5. Đợt đối chiếu đã thêm bộ lọc nhiều người/nhiều nhãn theo một/tất cả lựa chọn, lọc hạn và hoạt động, thu gọn/mở rộng tất cả cột. “Việc của tôi” đã lấy toàn bộ thẻ được giao trên các bảng đang mở, có lựa chọn đang làm/đã xong/tất cả, bỏ giới hạn 100 của Planner. Đợt hoàn thiện tiếp theo đã thêm thư viện mẫu, sửa nhanh, Photos và ảnh nền Kanban; share extension và một số thao tác sắp xếp nâng cao vẫn cần hoàn thiện.
 6. Cần chọn phương án phân phối nội bộ và hoàn tất biểu mẫu/quyền riêng tư/cấu hình phát hành trước khi đưa lên TestFlight. Không suy ra rằng app nội bộ bắt buộc phải dùng Apple Enterprise.
 
 ## Kiểm chứng ngày 26/10/2026
@@ -132,7 +132,7 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Checklist nhiều nhóm, người/hạn việc con, chuyển thành thẻ | Có | API nhóm/người/hạn và reset kỳ; cần UI chuyển việc con thành thẻ |
 | Bình luận/sửa/xóa/@mention/phản ứng | Có | API bình luận và phản ứng; UI nhập/sửa cần thử thêm |
 | Đính kèm link/tệp, tải có xác thực, Quick Look | Có | API upload/download, chặn ngoài quyền và sau thu hồi; UI file picker/Quick Look chưa nghiệm thu |
-| Chọn ảnh trực tiếp từ Photos | Thiếu lối chọn riêng | Hiện dùng Files; không coi tương đương chọn thư viện Photos |
+| Chọn ảnh trực tiếp từ Photos | Đã thêm | UI mở Photos, chọn ảnh phong cảnh trong Simulator, tải lên và xem bằng Quick Look; có xử lý ảnh lớn/định dạng ở luồng riêng |
 | Màu bìa/ảnh bìa từ đính kèm | Có mã | Cần thử ảnh lớn/định dạng ảnh trên iPhone |
 | Trường tùy chỉnh chữ/số/ngày/select/checkbox | Có mã | Giá trị demo hiển thị; chưa thử UI mọi kiểu |
 | Bình chọn/theo dõi/tham gia | Có mã | Chưa thử UI toàn bộ; nhắc đẩy nền ghi riêng |
@@ -140,11 +140,11 @@ Web có các nhóm dưới đây trong mã nguồn; các giới hạn chung như
 | Di chuyển xuyên bảng | Có, còn khác UX web | API chặn không đủ quyền; danh sách đích native còn hiện cả bảng có quyền xem nên có thể chọn xong mới nhận lỗi |
 | Thẻ đối xứng | Có | Đọc dữ liệu gốc/mở gốc theo quyền; test nguồn thành viên/nhãn/checklist; cần UI xuyên bảng |
 | Hợp nhất thẻ | Có mã | Chưa thử UI và khôi phục thẻ nguồn sau hợp nhất |
-| Mẫu thẻ | Một phần | Có đánh dấu mẫu và sao chép; thiếu thư viện/chọn mẫu riêng khi tạo thẻ |
-| Sửa nhanh thẻ ngay trên bảng | Thiếu lối riêng | Hiện mở chi tiết thẻ để sửa |
+| Mẫu thẻ | Đã thêm thư viện | Chọn mẫu ngay trong cột hoặc menu Thẻ mới, đặt tên/cột đích, chọn giữ người phụ trách. UI đã tạo bản sao; API kiểm tra đủ dữ liệu và reset hoàn thành |
+| Sửa nhanh thẻ ngay trên bảng | Đã thêm | Nút bút chì/nhấn giữ thẻ mở sửa tên, ngày/giờ, nhãn. UI đã lưu đủ các trường đó; không hiện sửa trực tiếp cho thẻ đối xứng hoặc bảng đóng |
 | Lưu trữ/khôi phục thẻ và cột | Có mã | Cần thêm UI, nhất là thẻ nằm trong cột đã lưu trữ |
 | Nhật ký bảng/thẻ, lịch sử duyệt | Có | Khớp tên sự kiện trong test; chưa nghiệm thu mọi loại sự kiện |
-| Nền màu/ảnh của bảng | Một phần | Có lưu nền và ảnh thu nhỏ; ảnh nền chưa phủ màn hình Kanban |
+| Nền màu/ảnh của bảng | Đã hiển thị Kanban | UI chọn ảnh nền từ Photos và thấy ảnh phủ khu vực Kanban; tiêu đề cột/nút dùng nền vật liệu để dễ đọc |
 | Sao chép/đóng/mở/xóa bảng | Có mã | Cần UI thử trên bảng demo có đủ dữ liệu |
 | Xuất CSV/JSON và chia sẻ tệp | Có mã | Cần kiểm tra file xuất trong Files/Excel thực tế |
 | Automation theo cột/lịch/hạn/nút | Có mã | Bộ tạo hành động cơ bản; chưa UI thử từng loại và mọi tổ hợp |
@@ -186,4 +186,26 @@ Các bảng/thẻ QA được xóa trong cleanup; tài khoản QA được khóa
 - UI nhân viên: đăng nhập, không có nút tạo bảng, vào Việc của tôi và chuyển Đang làm/Đã xong, thấy đúng việc đã duyệt. Việc hoàn thành dùng fixture `[DEMO QA]` tạo qua quy trình gửi/duyệt bình thường để giữ lại cho người dùng xem thử.
 - Xcode có một phiên LLDB/Run bị kẹt khi thay app. Đã dừng tác vụ, đóng riêng Kairetic trong App Switcher, mở lại Xcode và chạy thành công; scheme **Kairetic Demo** hiện tắt **Debug executable** để thử giao diện. Scheme Kairetic bình thường vẫn dùng debugger. Không xóa dữ liệu Simulator hoặc sửa cài đặt bảo mật hệ thống.
 
-Phần còn thiếu rõ nhất so với web: thư viện mẫu riêng, sửa nhanh trên bảng, kéo thả Inbox, lối chọn ảnh trực tiếp từ Photos, nền ảnh phủ Kanban và một số lựa chọn sắp xếp. Các đường xử lý còn lại đã có mã nhưng còn nhiều mục chưa nghiệm thu UI. Push nền APNs, Universal Links, offline và thử iPhone thật là các hạng mục riêng; không coi đợt đối chiếu này là hoàn tất toàn bộ app.
+Sau đợt hoàn thiện bên dưới, phần còn thiếu rõ nhất so với web là kéo thả Inbox và một số lựa chọn sắp xếp nâng cao. Các đường xử lý còn lại đã có mã nhưng còn nhiều mục chưa nghiệm thu UI. Push nền APNs, Universal Links, offline và thử iPhone thật là các hạng mục riêng; không coi đợt đối chiếu này là hoàn tất toàn bộ app.
+
+## Hoàn thiện thao tác hằng ngày — 26/10/2026
+
+### Đã bổ sung
+
+1. **Thư viện mẫu ngay trong bảng:** nút Từ mẫu ở từng cột và Thẻ mới → Tạo thẻ từ mẫu. Chỉ lấy mẫu gốc đang hoạt động của bảng có quyền xem; cho chọn tên mới, cột đích, giữ/bỏ người phụ trách. Mô tả, nhãn, trường, checklist và đính kèm được sao chép qua API hiện có; thẻ mới không mang cờ mẫu, chưa hoàn thành và việc con chưa được đánh dấu xong. Ngày/giờ trong mẫu được giữ giống web, có thông tin nhắc ở biểu mẫu nếu mẫu có ngày hạn.
+2. **Sửa nhanh trên Kanban:** nút bút chì trên thẻ hoặc nhấn giữ → Sửa nhanh. Có tên, bộ chọn ngày/giờ native, gỡ hạn và nhiều nhãn. Chỉ gửi trường đã đổi để tránh mở lại duyệt khi bấm Lưu mà không sửa gì. Trước khi lưu tải lại thẻ để phát hiện nội dung đã đổi từ máy khác. Đây là kiểm tra trước khi ghi, không thay thế khóa/version phía máy chủ. Nếu tên/ngày đã lưu nhưng nhãn lỗi mạng, biểu mẫu nói rõ phần đã lưu và cho thử lại.
+3. **Photos trong đính kèm và nền bảng:** dùng bộ chọn ảnh hệ thống, tải file đã chọn vào thư mục tạm riêng, xử lý ảnh ở actor nền. Ảnh được xoay đúng chiều, thu nhỏ tối đa 2560 px, xuất JPEG và không mang GPS/EXIF của ảnh gốc. Giới hạn sau xử lý 25 MB cho đính kèm, 10 MB cho nền; không đọc toàn bộ ảnh gốc thành bitmap. Người dùng vẫn có Files để gửi tệp gốc. Ảnh Photos là ảnh tĩnh JPEG; không coi đây là đường giữ nguyên ảnh động/Live Photo.
+4. **Ảnh nền Kanban:** tải bằng Bearer giống đính kèm, giới hạn khung theo kích thước màn hình, cắt ảnh phủ nền và dùng nền vật liệu dưới tiêu đề cột/nút. Không nhúng token vào URL ảnh hoặc mở rộng quyền đọc file.
+
+### Kiểm chứng
+
+- **23 test Swift/API qua, 0 lỗi**, gồm 3 bài tích hợp backend demo thực. Các test mới bao phủ lọc mẫu, trường sửa nhanh/no-op, phát hiện xung đột/thử lại sau ghi một phần, xử lý ảnh có GPS, giới hạn kích thước/dung lượng và ảnh hỏng.
+- Luồng API mới: tạo mẫu có người/checklist có hạn/nhãn/đính kèm, sao chép có và không giữ người, xác nhận trạng thái mới chưa hoàn thành, sửa nhanh mở lại chờ duyệt, upload/download JPEG có xác thực và đổi nền; nhân viên bị chặn đổi nền bảng.
+- Debug Simulator đã build và chạy bằng Xcode. Release iPhoneOS arm64 chưa ký đã build thành công; vẫn chưa có bản cài ký cho iPhone thật.
+- UI đã mở thư viện mẫu, chọn mẫu có 2 việc con/1 đính kèm, tạo thẻ mới; dùng bút chì đổi tên thành `QA-EDIT-UI-01`, thêm ngày/giờ và nhãn, thấy kết quả trên bảng.
+- UI đã mở Photos, chọn ảnh phong cảnh trong Simulator, thấy ảnh thành đính kèm và ảnh bìa, mở xem ảnh thành công bằng Quick Look; sau đó chọn ảnh nền từ Photos và thấy ảnh phủ Kanban.
+- Toàn bộ thao tác dùng localhost:3101 và fixture demo. Không triển khai/sửa dữ liệu trên website production.
+
+### Chưa coi là đã kiểm chứng
+
+Chưa thử trên iPhone thật, iCloud Photos chậm, ảnh 100 MB, hết dung lượng máy, mọi định dạng ảnh hoặc giao diện chữ lớn/chế độ tối. Kiểm tra xung đột sửa nhanh đã có test logic, chưa thử đồng thời hai người trên hai thiết bị. APNs, offline, Universal Links và phân phối vẫn là các bước riêng.

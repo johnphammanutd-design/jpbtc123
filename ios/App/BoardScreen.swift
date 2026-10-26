@@ -12,6 +12,9 @@ struct BoardScreen: View {
     @State private var selectedDate = Date()
     @State private var edit: EditRequest?
     @State private var collapsed = Set<Int>()
+    @State private var showTemplates = false
+    @State private var templateListID = 0
+    @State private var quickEdit: QuickEditRequest?
     var body: some View {
         Group {
             if let s = snapshot {
@@ -22,7 +25,7 @@ struct BoardScreen: View {
                             Button { showFilters = true } label: { Label(filter.active ? "Đang lọc" : "Bộ lọc", systemImage: filter.active ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") }
                             Menu { Button("Thu gọn tất cả cột") { collapsed = Set(s.lists.map(\.id)) }; Button("Mở rộng tất cả cột") { collapsed = [] } } label: { Image(systemName: "rectangle.compress.vertical").accessibilityLabel("Thu gọn hoặc mở rộng cột") }
                             Spacer()
-                            if !s.board.flag("closed") { Button { createCard(s) } label: { Label("Thẻ mới", systemImage: "plus") } }
+                            if !s.board.flag("closed") { Menu { Button("Tạo thẻ trống") { createCard(s) }; Button("Tạo thẻ từ mẫu") { templateListID = selectedList; showTemplates = true } } label: { Label("Thẻ mới", systemImage: "plus") } }
                         }.font(.subheadline).padding(.vertical, 3)
                         if let error { Text(error).font(.caption).foregroundStyle(.red) }
                         if s.board.flag("closed") { Badge(text: "Bảng đã đóng", color: .orange) }
@@ -30,7 +33,7 @@ struct BoardScreen: View {
                     if view == "Kanban" {
                         if s.lists.isEmpty { EmptyState(title: "Bảng chưa có cột", symbol: "rectangle.split.3x1") }
                         else {
-                            Picker("Chuyển cột", selection: $selectedList) { ForEach(s.lists) { Text($0.title).tag($0.id) } }.pickerStyle(.menu).padding(.top, 4)
+                            Picker("Chuyển cột", selection: $selectedList) { ForEach(s.lists) { Text($0.title).tag($0.id) } }.pickerStyle(.menu).padding(.top, 4).background(.regularMaterial)
                             TabView(selection: $selectedList) { ForEach(s.lists) { list in column(list, s) .tag(list.id) } }.tabViewStyle(.page(indexDisplayMode: .always))
                         }
                     } else if view == "Lịch" {
@@ -38,7 +41,7 @@ struct BoardScreen: View {
                     } else {
                         List { ForEach(filtered(s)) { c in NavigationLink { CardScreen(cardID: c.id) } label: { VStack(alignment: .leading, spacing: 8) { Text(c.title).fontWeight(.medium); HStack { Text(s.lists.first { $0.id == c.number("list_id") }?.title ?? ""); Spacer(); Text(c.reviewLabel) }.font(.caption).foregroundStyle(.secondary); Text(s.members(of: c).map { $0.text("name") }.joined(separator: ", ")).font(.caption) } } } }
                     }
-                }.background(canvas)
+                }.background { BoardBackdrop(background: s.board.text("background")) }
                 .navigationTitle(s.board.title).navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     Button { state.handle { _ = try await state.mutate("/api/boards/\(boardID)/star"); try await load() } } label: { Image(systemName: state.boards.first { $0.id == boardID }?.flag("starred") == true ? "star.fill" : "star").accessibilityLabel("Gắn sao bảng") }
@@ -49,6 +52,8 @@ struct BoardScreen: View {
             else { ProgressView("Đang tải bảng…") }
         }
         .sheet(item: $edit) { EditSheet($0) }
+        .sheet(item: $quickEdit) { QuickEditSheet($0) }
+        .sheet(isPresented: $showTemplates) { if let snapshot { TemplatePickerSheet(snapshot: snapshot, listID: templateListID == 0 ? snapshot.lists.first?.id ?? 0 : templateListID) } }
         .sheet(isPresented: $showFilters) { if let snapshot { BoardFilterSheet(filter: $filter, snapshot: snapshot) } }
         .task(id: state.revision) { do { try await load(); state.watch(boardID) } catch is CancellationError {} catch { self.error = error.localizedDescription } }
         .onDisappear { state.watch(nil) }
@@ -75,12 +80,17 @@ struct BoardScreen: View {
                         DestructiveButton(title: "Lưu trữ thẻ trong cột", detail: "Có thể khôi phục từ kho lưu trữ.") { state.handle { _ = try await state.mutate("/api/lists/\(list.id)/archive-cards") } }
                         DestructiveButton(title: "Lưu trữ cột", detail: "Có thể khôi phục cột từ kho lưu trữ.") { state.handle { _ = try await state.mutate("/api/lists/\(list.id)", "PATCH", ["archived": .bool(true)]) } }
                     }
-                } label: { Image(systemName: "ellipsis").padding(8).accessibilityLabel("Menu cột \(list.title)") } }
+                } label: { Image(systemName: "ellipsis").padding(8).accessibilityLabel("Menu cột \(list.title)") } }.padding(10).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 13))
                 if !collapsed.contains(list.id) {
-                    if cards.isEmpty { EmptyState(title: "Cột này chưa có thẻ") }
+                    if cards.isEmpty { EmptyState(title: "Cột này chưa có thẻ").background(.regularMaterial, in: RoundedRectangle(cornerRadius: 15)) }
                     if filter.active { Text("Hiển thị \(cards.count)/\(total) thẻ").font(.caption).foregroundStyle(.secondary) }
                     ForEach(cards) { card in
-                        NavigationLink { CardScreen(cardID: card.id) } label: { CardTile(card: card, snapshot: s) }.buttonStyle(.plain).draggable("kairetic-card:\(card.id)")
+                        NavigationLink { CardScreen(cardID: card.id) } label: { CardTile(card: card, snapshot: s, reservesActionSpace: !s.board.flag("closed") && card.number("mirror_of") == 0) }.buttonStyle(.plain)
+                            .overlay(alignment: .topTrailing) {
+                                if !s.board.flag("closed"), card.number("mirror_of") == 0 { Button { quickEdit = QuickEditRequest(card: card, snapshot: s) } label: { Image(systemName: "pencil").frame(width: 44, height: 44) }.buttonStyle(.borderless).accessibilityLabel("Sửa nhanh \(card.title)") }
+                            }
+                            .contextMenu { if !s.board.flag("closed"), card.number("mirror_of") == 0 { Button("Sửa nhanh", systemImage: "pencil") { quickEdit = QuickEditRequest(card: card, snapshot: s) } } }
+                            .draggable("kairetic-card:\(card.id)")
                             .dropDestination(for: String.self) { items, _ in
                                 guard !s.board.flag("closed"), let item = items.first, item.hasPrefix("kairetic-card:"), let id = Int(item.dropFirst(14)), id != card.id, s.cards.contains(where: { $0.id == id }) else { return false }
                                 let all = s.cards.filter { $0.number("list_id") == list.id && $0.id != id }
@@ -89,7 +99,13 @@ struct BoardScreen: View {
                                 state.handle { _ = try await state.mutate("/api/cards/\(id)", "PATCH", ["list_id": .id(list.id), "position": .number(position)]) }; return true
                             }
                     }
-                    if !s.board.flag("closed") { Button { createCard(s, list: list.id) } label: { Label("Thêm thẻ", systemImage: "plus") }.frame(maxWidth: .infinity).padding(10).background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 12)) }
+                    if !s.board.flag("closed") {
+                        HStack {
+                            Button { createCard(s, list: list.id) } label: { Label("Thêm thẻ", systemImage: "plus") }
+                            Spacer()
+                            Button { templateListID = list.id; showTemplates = true } label: { Label("Từ mẫu", systemImage: "rectangle.stack.badge.plus") }.accessibilityLabel("Tạo thẻ từ mẫu trong \(list.title)")
+                        }.font(.subheadline).padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
                 }
             }.padding(.horizontal).padding(.top, 10).padding(.bottom, 45)
                 .background(list.text("color").isEmpty ? Color.clear : Color(hex: list.text("color")).opacity(0.12))

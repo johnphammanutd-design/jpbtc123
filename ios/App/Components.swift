@@ -101,6 +101,7 @@ struct DestructiveButton: View {
 struct CardTile: View {
     let card: Record
     var snapshot: BoardSnapshot?
+    var reservesActionSpace = false
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if card.text("cover").hasPrefix("url:/u/") { AuthenticatedImage(path: String(card.text("cover").dropFirst(4))).frame(height: 100).clipped().clipShape(RoundedRectangle(cornerRadius: 8)) }
@@ -125,7 +126,7 @@ struct CardTile: View {
                 let names = snapshot.members(of: card).map { $0.text("name") }.joined(separator: ", ")
                 HStack { Text(names.isEmpty ? "Chưa giao" : names).font(.caption).foregroundStyle(.secondary).lineLimit(1); Spacer(); if ["pending", "changes_requested"].contains(card.text("approval_state")) { Badge(text: card.reviewLabel, color: .orange) } }
             } else { Text(card.text("board_title")).font(.caption).foregroundStyle(.secondary) }
-        }.padding(15).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(Color.primary.opacity(0.05)))
+        }.padding(.trailing, reservesActionSpace ? 34 : 0).padding(15).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(Color.primary.opacity(0.05)))
     }
 }
 struct ActivityList: View {
