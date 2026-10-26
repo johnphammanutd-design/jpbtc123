@@ -65,7 +65,7 @@ struct LoginScreen: View {
                 if state.origin.scheme == "http" { Badge(text: "Môi trường thử nghiệm riêng", color: .orange) }
                 #endif
             }.padding(26).frame(maxWidth: 530)
-        }.frame(maxWidth: .infinity).background(canvas).disabled(busy).onSubmit(signIn)
+        }.frame(maxWidth: .infinity).background(canvas).inputSupport().disabled(busy).onSubmit(signIn)
     }
     func signIn() {
         guard !busy else { return }; busy = true; error = nil
@@ -73,12 +73,13 @@ struct LoginScreen: View {
     }
 }
 struct OverviewScreen: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     @EnvironmentObject var state: AppState
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) { Text("Chào \(state.user?.text("name") ?? "")").font(.title2.bold()); Text(state.isDirector ? "Tình hình vận hành công ty" : "Công việc trong các bảng được cấp quyền").foregroundStyle(.secondary) }.padding(.horizontal)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     metric("Đang thực hiện", max(0, state.overview["stats"]["total"].int - state.overview["stats"]["done"].int), "square.stack", brand)
                     metric("Chờ duyệt", state.overview["stats"]["pending"].int, "checkmark.seal", .orange)
                     metric("Quá hạn", state.overview["stats"]["overdue"].int, "clock.badge.exclamationmark", .red)
@@ -99,6 +100,7 @@ struct OverviewScreen: View {
     }
 }
 struct TaskHome: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     @EnvironmentObject var state: AppState
     @State private var tab = "boards"
     @State private var myCards: [Record] = []
@@ -107,11 +109,12 @@ struct TaskHome: View {
     @State private var workError: String?
     @State private var edit: EditRequest?
     @State private var closed = false
+    private var workPicker: some View { Picker("Danh sách công việc", selection: $tab) { Text("Bảng").tag("boards"); Text("Việc của tôi").tag("mine"); Text("Chờ duyệt").tag("review") } }
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Picker("Danh sách công việc", selection: $tab) { Text("Bảng").tag("boards"); Text("Việc của tôi").tag("mine"); Text("Chờ duyệt").tag("review") }.pickerStyle(.segmented)
-                HStack { NavigationLink { InboxScreen() } label: { Label("Inbox", systemImage: "tray") }; Spacer(); NavigationLink { PlannerScreen() } label: { Label("Planner", systemImage: "calendar") }; Spacer(); NavigationLink { SearchScreen() } label: { Image(systemName: "magnifyingglass").accessibilityLabel("Tìm công việc") } }.buttonStyle(.bordered)
+                Group { if typeSize.isAccessibilitySize { workPicker.pickerStyle(.menu) } else { workPicker.pickerStyle(.segmented) } }
+                FlowLayout { NavigationLink { InboxScreen() } label: { Label("Inbox", systemImage: "tray") }; NavigationLink { PlannerScreen() } label: { Label("Planner", systemImage: "calendar") }; NavigationLink { SearchScreen() } label: { Image(systemName: "magnifyingglass").accessibilityLabel("Tìm công việc") } }.buttonStyle(.bordered)
                 if tab == "boards" {
                     ForEach(state.boards.filter { $0.flag("closed") == closed }.sorted { $0.flag("starred") && !$1.flag("starred") }) { board in
                         NavigationLink { BoardScreen(boardID: board.id) } label: { HStack(spacing: 14) {

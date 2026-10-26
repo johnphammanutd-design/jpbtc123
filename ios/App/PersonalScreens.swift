@@ -1,32 +1,5 @@
 import SwiftUI
 
-struct InboxScreen: View {
-    @EnvironmentObject var state: AppState
-    @State private var items: [Record] = []
-    @State private var edit: EditRequest?
-    @State private var destination: DestinationRequest?
-    @State private var text = ""
-    @State private var busy = false
-    var body: some View {
-        List {
-            Section("Ghi nhanh ý tưởng hoặc công việc") {
-                TextField("Nội dung", text: $text, axis: .vertical).lineLimit(2...5)
-                Button("Thêm vào Inbox") { guard !busy else { return }; busy = true; state.handle { defer { busy = false }; _ = try await state.mutate("/api/inbox", "POST", ["text": .string(text)]); text = "" } }.disabled(busy || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            if items.isEmpty { EmptyState(title: "Inbox trống", symbol: "tray") }
-            ForEach(items) { item in VStack(alignment: .leading, spacing: 12) {
-                Text(item.text("text")).fontWeight(.medium)
-                if !item.text("date").isEmpty { Label(item.text("date"), systemImage: "calendar").font(.caption).foregroundStyle(.secondary) }
-                HStack {
-                    Button("Thành thẻ") { destination = DestinationRequest(title: "Chuyển Inbox thành thẻ", initialBoard: state.boards.first { !$0.flag("closed") }?.id ?? 0) { list, _, _ in _ = try await state.mutate("/api/inbox/\(item.id)/convert", "POST", ["list_id": .id(list)]) } }.disabled(state.boards.filter { !$0.flag("closed") }.isEmpty)
-                    Spacer(); Button("Sửa") { edit = EditRequest(title: "Sửa Inbox", fields: [FormField(id: "text", label: "Nội dung", value: item["text"], kind: .multiline, required: true), FormField(id: "date", label: "Ngày dự kiến", value: item["date"], kind: .date)]) { v in _ = try await state.mutate("/api/inbox/\(item.id)", "PATCH", v) } }
-                    DestructiveButton(title: "Xóa") { state.handle { _ = try await state.mutate("/api/inbox/\(item.id)", "DELETE") } }
-                }.font(.subheadline).buttonStyle(.borderless)
-            }.padding(.vertical, 5) }
-        }.navigationTitle("Inbox").sheet(item: $edit) { EditSheet($0) }.sheet(item: $destination) { DestinationSheet($0) }
-        .task(id: state.revision) { do { items = try await state.call("/api/inbox")["items"].rows } catch { state.message = error.localizedDescription } }
-    }
-}
 struct PlannerScreen: View {
     @EnvironmentObject var state: AppState
     @State private var data: JSON = .null
@@ -47,7 +20,7 @@ struct PlannerScreen: View {
                 }
             }
             Section("Inbox trong ngày") { ForEach(data["inbox"].rows.filter { $0.text("date") == dateString(day) }) { Text($0.text("text")) } }
-        }.navigationTitle("Planner").toolbar { Button("Xếp lịch") { edit = EditRequest(title: "Xếp lịch cá nhân", fields: [.pick("card_id", "Công việc", data["myCards"].rows.map { (String($0.id), $0.title) }, String(data["myCards"].rows.first?.id ?? 0)), FormField(id: "date", label: "Ngày dự kiến", value: .string(dateString(day)), kind: .date)]) { v in _ = try await state.mutate("/api/planner", "PUT", ["card_id": .id(v["card_id"]?.int ?? 0), "date": v["date"] ?? .null]) } }.disabled(data["myCards"].rows.isEmpty) }
+        }.navigationTitle("Planner").toolbar { Button("Xếp lịch") { edit = EditRequest(title: "Xếp lịch cá nhân", fields: [.pick("card_id", "Công việc", data["myCards"].rows.map { (String($0.id), $0.title) }, String(data["myCards"].rows.first?.id ?? 0)), FormField(id: "date", label: "Ngày dự kiến", value: .string(dateString(day)), kind: .date, required: true)]) { v in _ = try await state.mutate("/api/planner", "PUT", ["card_id": .id(v["card_id"]?.int ?? 0), "date": v["date"] ?? .null]) } }.disabled(data["myCards"].rows.isEmpty) }
         .sheet(item: $edit) { EditSheet($0) }.task(id: state.revision) { do { data = try await state.call("/api/planner") } catch { state.message = error.localizedDescription } }
     }
 }

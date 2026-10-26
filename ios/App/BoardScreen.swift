@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BoardScreen: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.dynamicTypeSize) private var typeSize
     let boardID: Int
     @State private var snapshot: BoardSnapshot?
     @State private var error: String?
@@ -15,16 +16,16 @@ struct BoardScreen: View {
     @State private var showTemplates = false
     @State private var templateListID = 0
     @State private var quickEdit: QuickEditRequest?
+    @State private var tableOrdering = TableOrdering()
     var body: some View {
         Group {
             if let s = snapshot {
                 VStack(spacing: 0) {
                     VStack(spacing: 10) {
-                        Picker("Cách xem", selection: $view) { ForEach(["Kanban", "Lịch", "Bảng kê"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
-                        HStack {
+                        Group { if typeSize.isAccessibilitySize { viewPicker.pickerStyle(.menu) } else { viewPicker.pickerStyle(.segmented) } }
+                        FlowLayout {
                             Button { showFilters = true } label: { Label(filter.active ? "Đang lọc" : "Bộ lọc", systemImage: filter.active ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") }
                             Menu { Button("Thu gọn tất cả cột") { collapsed = Set(s.lists.map(\.id)) }; Button("Mở rộng tất cả cột") { collapsed = [] } } label: { Image(systemName: "rectangle.compress.vertical").accessibilityLabel("Thu gọn hoặc mở rộng cột") }
-                            Spacer()
                             if !s.board.flag("closed") { Menu { Button("Tạo thẻ trống") { createCard(s) }; Button("Tạo thẻ từ mẫu") { templateListID = selectedList; showTemplates = true } } label: { Label("Thẻ mới", systemImage: "plus") } }
                         }.font(.subheadline).padding(.vertical, 3)
                         if let error { Text(error).font(.caption).foregroundStyle(.red) }
@@ -39,7 +40,7 @@ struct BoardScreen: View {
                     } else if view == "Lịch" {
                         ScrollView { DatePicker("Ngày đến hạn", selection: $selectedDate, displayedComponents: .date).datePickerStyle(.graphical).padding(.horizontal); cardsList(filtered(s).filter { $0.text("due_date") == dateString(selectedDate) }, s); let noDate = filtered(s).filter { $0.text("due_date").isEmpty }; if !noDate.isEmpty { Text("Chưa đặt ngày · \(noDate.count) thẻ").font(.caption).foregroundStyle(.secondary).padding() } }
                     } else {
-                        List { ForEach(filtered(s)) { c in NavigationLink { CardScreen(cardID: c.id) } label: { VStack(alignment: .leading, spacing: 8) { Text(c.title).fontWeight(.medium); HStack { Text(s.lists.first { $0.id == c.number("list_id") }?.title ?? ""); Spacer(); Text(c.reviewLabel) }.font(.caption).foregroundStyle(.secondary); Text(s.members(of: c).map { $0.text("name") }.joined(separator: ", ")).font(.caption) } } } }
+                        BoardTableView(snapshot: s, cards: filtered(s), ordering: $tableOrdering)
                     }
                 }.background { BoardBackdrop(background: s.board.text("background")) }
                 .navigationTitle(s.board.title).navigationBarTitleDisplayMode(.inline)
@@ -58,6 +59,7 @@ struct BoardScreen: View {
         .task(id: state.revision) { do { try await load(); state.watch(boardID) } catch is CancellationError {} catch { self.error = error.localizedDescription } }
         .onDisappear { state.watch(nil) }
     }
+    private var viewPicker: some View { Picker("Cách xem", selection: $view) { ForEach(["Kanban", "Lịch", "Bảng kê"], id: \.self) { Text($0) } } }
     func load() async throws {
         do { let data = try await state.call("/api/boards/\(boardID)"); try Task.checkCancellation(); let s = BoardSnapshot(data); snapshot = s; error = nil; if !s.lists.contains(where: { $0.id == selectedList }) { selectedList = s.lists.first?.id ?? 0 } }
         catch { if case APIError.server(let status, _) = error, [401, 403, 404].contains(status) { snapshot = nil }; throw error }
@@ -74,7 +76,7 @@ struct BoardScreen: View {
                     Button("Theo dõi / bỏ theo dõi cột") { state.handle { _ = try await state.mutate("/api/lists/\(list.id)/watch") } }
                     if s.canManage {
                         Button("Sửa cột / WIP / vị trí") { editList(list, s) }
-                        Menu("Sắp xếp thẻ") { ForEach([("title", "Tên thẻ"), ("due", "Ngày hết hạn"), ("created", "Mới tạo")], id: \.0) { option in Button(option.1) { state.handle { _ = try await state.mutate("/api/lists/\(list.id)/sort", "POST", ["by": .string(option.0)]) } } } }
+                        Menu("Sắp xếp toàn bộ thẻ") { ForEach([("title", "Tên thẻ A → Z"), ("due", "Ngày hết hạn sớm trước"), ("created", "Mới tạo trước")], id: \.0) { option in Button(option.1) { state.handle { _ = try await state.mutate("/api/lists/\(list.id)/sort", "POST", ["by": .string(option.0)]) } } } }
                         Button("Sao chép cột") { edit = EditRequest(title: "Sao chép cột", fields: [.text("title", "Tên cột", list.title + " · Bản sao", required: true)]) { v in _ = try await state.mutate("/api/lists/\(list.id)/copy", "POST", v) } }
                         Button("Chuyển tất cả thẻ") { edit = EditRequest(title: "Chuyển thẻ trong cột", fields: [.pick("list_id", "Cột đích", s.lists.filter { $0.id != list.id }.map { (String($0.id), $0.title) }, String(s.lists.first { $0.id != list.id }?.id ?? 0))]) { v in _ = try await state.mutate("/api/lists/\(list.id)/move-cards", "POST", ["list_id": .id(v["list_id"]?.int ?? 0)]) } }
                         DestructiveButton(title: "Lưu trữ thẻ trong cột", detail: "Có thể khôi phục từ kho lưu trữ.") { state.handle { _ = try await state.mutate("/api/lists/\(list.id)/archive-cards") } }
@@ -100,9 +102,8 @@ struct BoardScreen: View {
                             }
                     }
                     if !s.board.flag("closed") {
-                        HStack {
+                        FlowLayout {
                             Button { createCard(s, list: list.id) } label: { Label("Thêm thẻ", systemImage: "plus") }
-                            Spacer()
                             Button { templateListID = list.id; showTemplates = true } label: { Label("Từ mẫu", systemImage: "rectangle.stack.badge.plus") }.accessibilityLabel("Tạo thẻ từ mẫu trong \(list.title)")
                         }.font(.subheadline).padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }

@@ -36,7 +36,7 @@ struct BoardFilterSheet: View {
                     }
                 }
                 Button("Xóa toàn bộ bộ lọc", role: .destructive) { draft = BoardFilter() }
-            }.navigationTitle("Bộ lọc công việc").navigationBarTitleDisplayMode(.inline)
+            }.inputSupport().navigationTitle("Bộ lọc công việc").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Áp dụng") { saved = draft; dismiss() }.fontWeight(.semibold) }

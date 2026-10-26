@@ -20,14 +20,14 @@ struct EmptyState: View {
 struct Badge: View {
     let text: String
     var color: Color = brand
-    var body: some View { Text(text).font(.caption.weight(.medium)).foregroundStyle(color).padding(.horizontal, 9).padding(.vertical, 5).background(color.opacity(0.1), in: Capsule()) }
+    var body: some View { HStack(spacing: 5) { Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true); Text(text).font(.caption.weight(.medium)).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true) }.padding(.horizontal, 9).padding(.vertical, 5).background(color.opacity(0.16), in: Capsule()).accessibilityElement(children: .combine) }
 }
 struct Surface<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View { VStack(alignment: .leading, spacing: 12) { content }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18)).padding(.horizontal) }
 }
 struct FormField: Identifiable {
-    enum Kind { case text, secure, multiline, toggle, integer, date, choice([(String, String)]), multi([(Int, String)]) }
+    enum Kind { case text, secure, multiline, toggle, integer, date, time, choice([(String, String)]), multi([(Int, String)]) }
     var id: String
     var label: String
     var value: JSON = .string("")
@@ -61,7 +61,11 @@ struct EditSheet: View {
                     switch f.kind {
                     case .text: TextField(f.label, text: text(f.id)).textInputAutocapitalization(.sentences)
                     case .integer: TextField(f.label, text: text(f.id)).keyboardType(.numbersAndPunctuation)
-                    case .date: VStack(alignment: .leading) { Text(f.label).font(.caption).foregroundStyle(.secondary); TextField("YYYY-MM-DD (để trống nếu không đặt)", text: text(f.id)).keyboardType(.numbersAndPunctuation) }
+                    case .date: OptionalDateField(label: f.label, value: Binding(get: { values[f.id]?.string ?? "" }, set: { value in
+                        values[f.id] = .string(value)
+                        if f.id == "due_date", value.isEmpty, values["due_time"] != nil { values["due_time"] = .string("") }
+                    }), required: f.required)
+                    case .time: OptionalTimeField(label: f.label, value: text(f.id)).disabled(values["due_date"]?.string.isEmpty == true)
                     case .secure: SecureField(f.label, text: text(f.id)).textContentType(.newPassword)
                     case .multiline: Section(f.label) { TextEditor(text: text(f.id)).frame(minHeight: 140) }
                     case .toggle: Toggle(f.label, isOn: flag(f.id))
@@ -74,7 +78,7 @@ struct EditSheet: View {
                     }
                 }
                 if let error { Text(error).foregroundStyle(.red) }
-            }.disabled(busy).navigationTitle(request.title).navigationBarTitleDisplayMode(.inline)
+            }.inputSupport().disabled(busy).navigationTitle(request.title).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) {
@@ -107,14 +111,13 @@ struct CardTile: View {
             if card.text("cover").hasPrefix("url:/u/") { AuthenticatedImage(path: String(card.text("cover").dropFirst(4))).frame(height: 100).clipped().clipShape(RoundedRectangle(cornerRadius: 8)) }
             if !card.text("cover").isEmpty, card.text("cover").hasPrefix("#") { RoundedRectangle(cornerRadius: 8).fill(Color(hex: card.text("cover"))).frame(height: 38).accessibilityLabel("Ảnh bìa màu") }
             if let snapshot {
-                HStack { ForEach(snapshot.labels(of: card)) { Badge(text: $0.text("name").isEmpty ? "Nhãn" : $0.text("name"), color: Color(hex: $0.text("color"))) } }.lineLimit(1)
+                FlowLayout(spacing: 6) { ForEach(snapshot.labels(of: card)) { Badge(text: $0.text("name").isEmpty ? "Nhãn" : $0.text("name"), color: Color(hex: $0.text("color"))) } }
             }
             Text(card.title).font(.body.weight(.semibold)).foregroundStyle(.primary).multilineTextAlignment(.leading)
-            HStack(spacing: 8) {
+            FlowLayout(spacing: 8) {
                 if card.flag("is_template") { Badge(text: "Mẫu") }
                 if card.number("mirror_of") > 0 { Image(systemName: "rectangle.on.rectangle") }
                 if !card.text("due_date").isEmpty { Label(card.text("due_date") + (card.text("due_time").isEmpty ? "" : " · \(card.text("due_time"))"), systemImage: "clock").foregroundStyle(CompanyClock.overdue(card) ? .red : .secondary) }
-                Spacer(minLength: 0)
                 if let snapshot {
                     let checks = snapshot.checklist(of: card)
                     if !checks.isEmpty { Label("\(checks.filter { $0.flag("checked") }.count)/\(checks.count)", systemImage: "checklist") }
@@ -124,7 +127,7 @@ struct CardTile: View {
             }.font(.caption)
             if let snapshot {
                 let names = snapshot.members(of: card).map { $0.text("name") }.joined(separator: ", ")
-                HStack { Text(names.isEmpty ? "Chưa giao" : names).font(.caption).foregroundStyle(.secondary).lineLimit(1); Spacer(); if ["pending", "changes_requested"].contains(card.text("approval_state")) { Badge(text: card.reviewLabel, color: .orange) } }
+                FlowLayout { Text(names.isEmpty ? "Chưa giao" : names).font(.caption).foregroundStyle(.secondary); if ["pending", "changes_requested"].contains(card.text("approval_state")) { Badge(text: card.reviewLabel, color: .orange) } }
             } else { Text(card.text("board_title")).font(.caption).foregroundStyle(.secondary) }
         }.padding(.trailing, reservesActionSpace ? 34 : 0).padding(15).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(Color.primary.opacity(0.05)))
     }
@@ -172,7 +175,7 @@ struct DestinationSheet: View {
                     ForEach([("labels", "Giữ nhãn"), ("members", "Giữ người phụ trách"), ("fields", "Giữ trường tùy chỉnh"), ("checklists", "Giữ checklist"), ("attachments", "Giữ đính kèm")], id: \.0) { option in Toggle(option.1, isOn: Binding(get: { keep[option.0] ?? true }, set: { keep[option.0] = $0 })) }
                 }
                 if let error { Text(error).foregroundStyle(.red) }
-            }.navigationTitle(request.title).navigationBarTitleDisplayMode(.inline).disabled(busy)
+            }.inputSupport().navigationTitle(request.title).navigationBarTitleDisplayMode(.inline).disabled(busy)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) { Button("Lưu") { busy = true; Task { defer { busy = false }; do { try await request.action(list, title, keep.mapValues(JSON.bool)); dismiss() } catch { self.error = error.localizedDescription } } }.disabled(busy || loading || list == 0 || (request.copying && title.trimmingCharacters(in: .whitespaces).isEmpty)) }

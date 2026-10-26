@@ -2,6 +2,8 @@
 
 ## Cập nhật iOS — 26/10/2026
 
+Đợt tiếp theo đã thêm kéo sắp xếp Inbox cá nhân (lưu server), sắp xếp Bảng kê năm trường/hai chiều, nút ẩn bàn phím, ngày native và bố cục thích ứng chữ lớn/nhãn dễ đọc. **30 test Swift/API qua**; Debug Simulator/Release chưa ký build thành công. Đang chờ mở khóa Mac để thử trực tiếp kéo tay nắm, bàn phím phần mềm, chế độ tối và chữ lớn trong Xcode; chưa coi các mục UI này đã nghiệm thu. Chi tiết ở cuối `ios/README.md`.
+
 Đã bổ sung tiếp thư viện mẫu trong bảng, sửa nhanh qua bút chì/nhấn giữ, chọn ảnh Photos cho đính kèm và ảnh nền, hiển thị nền ảnh Kanban. **23 test Swift/API qua**; đã thử các thao tác này trong Xcode, gồm tạo thẻ từ mẫu, sửa tên/ngày/giờ/nhãn, tải ảnh Photos lên/xem Quick Look và đổi nền bằng Photos. Ảnh được tối ưu/loại metadata trước khi gửi; dùng dữ liệu demo riêng, không sửa production. Chi tiết và giới hạn nằm ở mục “Hoàn thiện thao tác hằng ngày” trong `ios/README.md`.
 
 Đợt đối chiếu tiếp theo đã sửa danh sách Việc của tôi (bỏ giới hạn 100, thêm việc đã xong), bộ lọc nhiều người/nhãn/hạn/hoạt động, giữ quyền quản lý khi leader lưu phân quyền, nút duyệt theo danh sách hợp lệ, giờ quá hạn theo công ty, tên sự kiện tiếng Việt và cập nhật vai trò trong phiên. **17 test Swift qua**, gồm hai luồng tích hợp backend demo thực; đã thử UI cả ba vai trò, lưu quyền leader, giám đốc yêu cầu sửa có ghi chú, danh sách 5 team và nhân viên xem việc đã xong. Ma trận tính năng và phần chưa có/chưa kiểm chứng nằm trong [ios/README.md](../ios/README.md#đối-chiếu-web-và-ios--đợt-kiểm-tra-26102026). Không đổi dữ liệu hoặc quyền production.

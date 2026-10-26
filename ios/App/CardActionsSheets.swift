@@ -33,13 +33,13 @@ struct QuickEditSheet: View {
                     if request.snapshot.rows("labels").isEmpty { Text("Bảng chưa có nhãn").foregroundStyle(.secondary) }
                     ForEach(request.snapshot.rows("labels")) { label in
                         Toggle(isOn: Binding(get: { draft.labelIDs.contains(label.id) }, set: { on in if on { draft.labelIDs.insert(label.id) } else { draft.labelIDs.remove(label.id) } })) {
-                            Label(label.text("name").isEmpty ? "Nhãn" : label.text("name"), systemImage: "tag.fill").foregroundStyle(Color(hex: label.text("color")))
+                            Label { Text(label.text("name").isEmpty ? "Nhãn" : label.text("name")) } icon: { Image(systemName: "tag.fill").foregroundStyle(Color(hex: label.text("color"))) }
                         }.accessibilityIdentifier("quick.label.\(label.id)")
                     }
                 }
                 Text("Nếu công việc đã gửi hoặc được duyệt, thay đổi nội dung sẽ yêu cầu gửi duyệt lại.").font(.footnote).foregroundStyle(.secondary)
                 if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-            }.disabled(busy).navigationTitle("Sửa nhanh thẻ").navigationBarTitleDisplayMode(.inline)
+            }.inputSupport().disabled(busy).navigationTitle("Sửa nhanh thẻ").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) { if busy { ProgressView() } else { Button("Lưu") { save() }.fontWeight(.semibold).accessibilityIdentifier("quick.save") } }
@@ -110,7 +110,7 @@ struct TemplatePickerSheet: View {
                     }
                 }
                 if let error { Text(error).foregroundStyle(.red) }
-            }.disabled(busy).navigationTitle("Tạo thẻ từ mẫu").navigationBarTitleDisplayMode(.inline)
+            }.inputSupport().disabled(busy).navigationTitle("Tạo thẻ từ mẫu").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) { if busy { ProgressView() } else { Button("Tạo thẻ") { create() }.disabled(selectedTemplate == 0 || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || listID == 0).accessibilityIdentifier("template.create") } }

@@ -9,13 +9,14 @@ final class DailyActionsLiveTests: XCTestCase {
             return API(origin: origin, token: result["token"].string)
         }
         let admin = try await login("admin"), leader = try await login("leader.demo"), staff = try await login("staff.demo")
-        let boards = try await staff.request("/api/boards")["boards"].rows
-        let board = try XCTUnwrap(boards.first { $0.title.hasPrefix("[DEMO]") })
-        let initial = BoardSnapshot(try await leader.request("/api/boards/\(board.id)"))
+        let boardID = try await admin.request("/api/boards", method: "POST", body: ["title": .string("[QA PHOTO] " + UUID().uuidString)])["id"].int
+        _ = try await admin.request("/api/boards/\(boardID)/members", method: "PUT", body: ["members": .array([
+            .object(["user_id": .id(2), "role": .string("manager")]), .object(["user_id": .id(3), "role": .string("member")])])])
+        let initial = BoardSnapshot(try await leader.request("/api/boards/\(boardID)"))
+        let board = initial.board
         let list = try XCTUnwrap(initial.lists.first).id
         let source = try await leader.request("/api/cards", method: "POST", body: ["list_id": .id(list), "title": .string("[iOS TEST] Template \(UUID().uuidString)")])["id"].int
         var created: [Int] = [source]
-        let originalBackground = initial.board["background"]
         do {
             _ = try await leader.request("/api/cards/\(source)", method: "PATCH", body: ["description": .string("Đầu ra theo mẫu"), "is_template": .bool(true), "due_date": .string("2026-11-30"), "due_time": .string("17:00")])
             _ = try await leader.request("/api/cards/\(source)/members", method: "PUT", body: ["user_ids": .array([.id(3)])])
@@ -61,9 +62,9 @@ final class DailyActionsLiveTests: XCTestCase {
             catch APIError.server(let status, _) { XCTAssertEqual(status, 403) }
         } catch {
             for id in created { _ = try? await admin.request("/api/cards/\(id)", method: "DELETE") }
-            _ = try? await admin.request("/api/boards/\(board.id)", method: "PATCH", body: ["background": originalBackground]); throw error
+            _ = try? await admin.request("/api/boards/\(board.id)", method: "DELETE"); throw error
         }
         for id in created { _ = try await admin.request("/api/cards/\(id)", method: "DELETE") }
-        _ = try await admin.request("/api/boards/\(board.id)", method: "PATCH", body: ["background": originalBackground])
+        _ = try await admin.request("/api/boards/\(board.id)", method: "DELETE")
     }
 }

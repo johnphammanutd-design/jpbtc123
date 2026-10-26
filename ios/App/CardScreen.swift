@@ -6,6 +6,7 @@ import PhotosUI
 struct CardScreen: View {
     @EnvironmentObject var state: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     let cardID: Int
     @State private var resolvedID = 0
     @State private var snapshot: BoardSnapshot?
@@ -42,12 +43,12 @@ struct CardScreen: View {
                             if let error { Text(error).foregroundStyle(.red).font(.footnote) }
                             reviewButtons(c, s)
                         }
-                        Picker("Chi tiết thẻ", selection: $tab) { ForEach(["Nội dung", "Trao đổi", "Hoạt động"], id: \.self) { Text($0) } }.pickerStyle(.segmented).padding(.horizontal)
+                        Group { if typeSize.isAccessibilitySize { sectionPicker.pickerStyle(.menu) } else { sectionPicker.pickerStyle(.segmented) } }.padding(.horizontal)
                         if tab == "Trao đổi" { commentsView(c, s) }
                         else if tab == "Hoạt động" { Surface { ActivityList(rows: activity); if activity.isEmpty { EmptyState(title: "Chưa có hoạt động") }; Divider(); Text("Lịch sử duyệt").font(.headline); ForEach(review["events"].rows) { e in VStack(alignment: .leading, spacing: 5) { Text(e.text("author") + " · " + (["submit":"Gửi duyệt", "approve":"Duyệt hoàn thành", "request_changes":"Yêu cầu chỉnh sửa"][e.text("action")] ?? e.text("action"))).font(.subheadline.bold()); Text(e.text("note")); Text(e.text("created_at")).font(.caption).foregroundStyle(.secondary) } } } }
                         else { content(c, s) }
                     }.padding(.vertical)
-                }.background(canvas).refreshable { await reload() }
+                }.background(canvas).inputSupport().refreshable { await reload() }
                 .toolbar { Menu { cardMenu(c, s) } label: { Image(systemName: "ellipsis.circle").accessibilityLabel("Thao tác với thẻ") } }
             } else if let error { EmptyState(title: error, symbol: "exclamationmark.lock") }
             else { ProgressView("Đang tải thẻ…") }
@@ -63,6 +64,7 @@ struct CardScreen: View {
         }
         .alert("Trợ lý AI", isPresented: Binding(get: { aiResult != nil }, set: { if !$0 { aiResult = nil } })) { Button("Đóng") { aiResult = nil } } message: { Text(aiResult ?? "") }
     }
+    private var sectionPicker: some View { Picker("Chi tiết thẻ", selection: $tab) { ForEach(["Nội dung", "Trao đổi", "Hoạt động"], id: \.self) { Text($0) } } }
     func reload() async {
         do {
             var id = cardID
@@ -96,7 +98,7 @@ struct CardScreen: View {
         if c.flag("archived") {
             Button("Khôi phục thẻ") { run { _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", ["archived": .bool(false)]) } }.buttonStyle(.borderedProminent)
         } else if active, c.text("approval_state") == "pending", permission.canDecide {
-            HStack { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy || photoBusy)
+            FlowLayout { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy || photoBusy)
         } else if permission.canSubmit {
             Button("Gửi duyệt") { reviewAction("submit") }.buttonStyle(.borderedProminent).disabled(busy || photoBusy)
         }
@@ -169,7 +171,7 @@ struct CardScreen: View {
     }
     func editCheck(_ item: Record?, group: Int?, s: BoardSnapshot) {
         let eligible = s.rows("eligibleMembers").filter { s.canManage || $0.id == state.user?.id || $0.id == item?.number("user_id") }
-        edit = EditRequest(title: item == nil ? "Thêm việc con" : "Sửa việc con", fields: [.text("text", "Nội dung", item?.text("text") ?? "", required: true), .pick("user_id", "Phụ trách", [("0", "Chưa giao")] + eligible.map { (String($0.id), $0.title) }, String(item?.number("user_id") ?? 0)), FormField(id: "due_date", label: "Ngày hết hạn", value: .string(item?.text("due_date") ?? ""), kind: .date), .text("due_time", "Giờ hết hạn HH:MM", item?.text("due_time") ?? "")]) { v in
+        edit = EditRequest(title: item == nil ? "Thêm việc con" : "Sửa việc con", fields: [.text("text", "Nội dung", item?.text("text") ?? "", required: true), .pick("user_id", "Phụ trách", [("0", "Chưa giao")] + eligible.map { (String($0.id), $0.title) }, String(item?.number("user_id") ?? 0)), FormField(id: "due_date", label: "Ngày hết hạn", value: .string(item?.text("due_date") ?? ""), kind: .date), FormField(id: "due_time", label: "Giờ hết hạn", value: .string(item?.text("due_time") ?? ""), kind: .time)]) { v in
             var b = v; b["user_id"] = v["user_id"]?.int == 0 ? .null : .id(v["user_id"]?.int ?? 0)
             if let item { _ = try await state.mutate("/api/checklist/\(item.id)", "PATCH", b) }
             else { if let group, group > 0 { b["group_id"] = .id(group) }; _ = try await state.mutate("/api/cards/\(resolvedID)/checklist", "POST", b) }
@@ -187,7 +189,7 @@ struct CardScreen: View {
     }
     func labels(_ c: Record, _ s: BoardSnapshot) { edit = EditRequest(title: "Nhãn của thẻ", fields: [FormField(id: "label_ids", label: "Nhãn", value: .array(s.labels(of: c).map { .id($0.id) }), kind: .multi(s.rows("labels").map { ($0.id, $0.text("name").isEmpty ? $0.text("color") : $0.text("name")) }))]) { v in _ = try await state.mutate("/api/cards/\(resolvedID)/labels", "PUT", v) } }
     func dates(_ c: Record) {
-        edit = EditRequest(title: "Ngày & nhắc việc", fields: [FormField(id: "start_date", label: "Ngày bắt đầu", value: c["start_date"], kind: .date), FormField(id: "due_date", label: "Ngày hết hạn", value: c["due_date"], kind: .date), .text("due_time", "Giờ hết hạn HH:MM", c.text("due_time")), .pick("recur", "Lặp lại", [("", "Không lặp"), ("daily", "Hằng ngày"), ("weekly", "Hằng tuần"), ("monthly", "Hằng tháng")], c.text("recur")), .pick("remind", "Nhắc trước hạn", [("none", "Không nhắc"), ("0d", "Đúng hạn"), ("5m", "5 phút"), ("15m", "15 phút"), ("1h", "1 giờ"), ("1d", "1 ngày"), ("2d", "2 ngày"), ("7d", "7 ngày")], c.text("remind"))]) { v in _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", v) }
+        edit = EditRequest(title: "Ngày & nhắc việc", fields: [FormField(id: "start_date", label: "Ngày bắt đầu", value: c["start_date"], kind: .date), FormField(id: "due_date", label: "Ngày hết hạn", value: c["due_date"], kind: .date), FormField(id: "due_time", label: "Giờ hết hạn", value: c["due_time"], kind: .time), .pick("recur", "Lặp lại", [("", "Không lặp"), ("daily", "Hằng ngày"), ("weekly", "Hằng tuần"), ("monthly", "Hằng tháng")], c.text("recur")), .pick("remind", "Nhắc trước hạn", [("none", "Không nhắc"), ("0d", "Đúng hạn"), ("5m", "5 phút"), ("15m", "15 phút"), ("1h", "1 giờ"), ("1d", "1 ngày"), ("2d", "2 ngày"), ("7d", "7 ngày")], c.text("remind"))]) { v in _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", v) }
     }
     func customFields(_ c: Record, _ s: BoardSnapshot) {
         let fields = s.rows("fields").map { f -> FormField in
@@ -213,7 +215,7 @@ struct CardScreen: View {
                     } label: { Image(systemName: "ellipsis") } }
                     Text(cm.text("text")).textSelection(.enabled)
                     Text(cm.text("created_at") + (cm.text("edited_at").isEmpty ? "" : " · đã sửa")).font(.caption2).foregroundStyle(.secondary)
-                    HStack { ForEach(["👍", "✅", "❤️", "👀", "🎉"], id: \.self) { emoji in let r = cm["reactions"].rows.first { $0.text("emoji") == emoji }; Button(emoji + ((r?.number("count") ?? 0) > 0 ? " \(r?.number("count") ?? 0)" : "")) { run { _ = try await state.mutate("/api/comments/\(cm.id)/reactions", "POST", ["emoji": .string(emoji)]) } }.font(.caption).padding(5).background(r?.flag("mine") == true ? brand.opacity(0.15) : Color.clear, in: Capsule()) } }
+                    FlowLayout { ForEach(["👍", "✅", "❤️", "👀", "🎉"], id: \.self) { emoji in let r = cm["reactions"].rows.first { $0.text("emoji") == emoji }; Button(emoji + ((r?.number("count") ?? 0) > 0 ? " \(r?.number("count") ?? 0)" : "")) { run { _ = try await state.mutate("/api/comments/\(cm.id)/reactions", "POST", ["emoji": .string(emoji)]) } }.font(.caption).padding(5).background(r?.flag("mine") == true ? brand.opacity(0.15) : Color.clear, in: Capsule()) } }
                     Divider()
                 }
             }
