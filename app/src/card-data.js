@@ -16,16 +16,18 @@ function fieldMap(cardId, boardId) {
     return {id,value:field.value};
   });
 }
-function validateMembers(cardId, boardId) {
+function validateMembers(cardId, boardId, checklists = true) {
   const members = db.prepare('SELECT user_id FROM card_members WHERE card_id=?').all(cardId);
-  if (members.some(m => !canSeeBoard(userById(m.user_id),boardId))) fail(409,'Cấp quyền vào bảng đích cho người nhận việc trước, hoặc bỏ giữ thành viên khi sao chép');
+  const assignees=[...members,...(checklists?db.prepare('SELECT DISTINCT user_id FROM checklist_items WHERE card_id=? AND user_id IS NOT NULL').all(cardId):[])];
+  // Keep historical assignments to disabled accounts without granting them access.
+  if (assignees.some(m => {const user=userById(m.user_id);return !user || (!user.disabled && !canSeeBoard(user,boardId));})) fail(409,'Cấp quyền vào bảng đích cho người nhận việc trước, hoặc bỏ giữ thành viên khi sao chép');
   return members;
 }
 export const cloneCard = db.transaction((cardId, listId, options = {}) => {
   const source = db.prepare('SELECT * FROM cards WHERE id=?').get(cardId);
   if (!source || source.mirror_of) fail(400,'Hãy sao chép từ thẻ gốc');
   const boardId = boardOfList(listId);
-  const members = options.members === false ? [] : validateMembers(cardId,boardId);
+  const members = options.members === false ? [] : validateMembers(cardId,boardId,options.checklists !== false);
   const id = db.prepare(`INSERT INTO cards(list_id,title,description,start_date,due_date,due_time,recur,remind,cover,position,is_template,created_by,recur_anchor_day)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(listId,String(options.title || source.title).trim(),source.description,source.start_date,source.due_date,source.due_time,source.recur,source.remind,source.cover,position(listId),options.keep_template ? source.is_template : 0, options.actor_id || null,source.recur_anchor_day).lastInsertRowid;
   if (options.labels !== false) for (const label of labelMap(cardId,boardId)) db.prepare('INSERT INTO card_labels(card_id,label_id) VALUES (?,?)').run(id,label);
@@ -35,7 +37,7 @@ export const cloneCard = db.transaction((cardId, listId, options = {}) => {
     for (const group of db.prepare('SELECT * FROM checklist_groups WHERE card_id=? ORDER BY position').all(cardId)) {
       const gid = db.prepare('INSERT INTO checklist_groups(card_id,title,position) VALUES (?,?,?)').run(id,group.title,group.position).lastInsertRowid;
       for (const item of db.prepare('SELECT * FROM checklist_items WHERE group_id=? ORDER BY position').all(group.id)) {
-        const uid = item.user_id && canSeeBoard(userById(item.user_id),boardId) ? item.user_id : null;
+        const uid = options.members === false ? null : item.user_id;
         db.prepare('INSERT INTO checklist_items(card_id,group_id,text,position,user_id,due_date,due_time) VALUES (?,?,?,?,?,?,?)').run(id,gid,item.text,item.position,uid,item.due_date,item.due_time);
       }
     }

@@ -2,7 +2,7 @@
 
 ## Cập nhật Codex — 26/10/2026 (đang chạy thử, chưa đưa lên production)
 
-Bản web/API mới đã thêm phân quyền bảng/team/leader, quy trình gửi duyệt/yêu cầu sửa/duyệt hoàn thành, checklist nhiều nhóm có người và hạn, sửa bình luận/phản ứng, sao chép dữ liệu đầy đủ hơn, công cụ thao tác cột, tổng quan theo team và các sửa lỗi lịch/Planner/nhắc hạn/công việc lặp. Đã qua 20 nhóm kiểm thử trên DB riêng và kiểm tra giao diện bằng Chrome. Đây là nền web/API cho mobile; chưa phải app iOS native.
+Bản web/API mới đã thêm phân quyền bảng/team/leader, quy trình gửi duyệt/yêu cầu sửa/duyệt hoàn thành, checklist nhiều nhóm có người và hạn, sửa bình luận/phản ứng, sao chép dữ liệu đầy đủ hơn, công cụ thao tác cột, tổng quan theo team và các sửa lỗi lịch/Planner/nhắc hạn/công việc lặp. Đã qua 21 nhóm kiểm thử trên DB riêng và kiểm tra giao diện bằng Chrome. Đây là nền web/API cho mobile; chưa phải app iOS native.
 
 **Cần chuẩn bị quyền truy cập trước production:** phiên bản mới yêu cầu cấp quyền cho mọi bảng; không còn tự cho mọi nhân viên xem bảng workspace. Chi tiết, kế hoạch cấp quyền và quy trình backup/cập nhật nằm tại [trien-khai-phan-quyen-va-duyet.md](trien-khai-phan-quyen-va-duyet.md).
 

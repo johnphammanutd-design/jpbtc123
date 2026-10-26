@@ -182,7 +182,7 @@ async function openTransferDialog(card,mode) {
   const bs=featureSelect(boards.map(b=>[b.id,b.title]),currentBoardId),ls=featureSelect([]);bs.setAttribute('aria-label','Bảng đích');ls.setAttribute('aria-label','Cột đích');
   const refresh=async()=>{const data=await api('/boards/'+bs.value);ls.innerHTML='';for(const list of data.lists){const o=featureEl('option',list.title);o.value=list.id;ls.appendChild(o);}if(Number(bs.value)===currentBoardId)ls.value=card.list_id;};
   bs.onchange=refresh;form.append(featureField('Bảng',bs),featureField('Cột',ls));
-  const keep={};if(mode==='copy')for(const [key,label] of [['labels','Giữ nhãn'],['members','Giữ thành viên'],['fields','Giữ trường tùy chỉnh'],['checklists','Giữ checklist'],['attachments','Giữ đính kèm']]){const cb=featureInput('checkbox');cb.checked=true;keep[key]=cb;form.appendChild(featureField(label,cb));}
+  const keep={};if(mode==='copy')for(const [key,label] of [['labels','Giữ nhãn'],['members','Giữ người nhận việc (cả việc con)'],['fields','Giữ trường tùy chỉnh'],['checklists','Giữ checklist'],['attachments','Giữ đính kèm']]){const cb=featureInput('checkbox');cb.checked=true;keep[key]=cb;form.appendChild(featureField(label,cb));}
   const submit=featureEl('button',mode==='copy'?'Tạo bản sao':'Di chuyển','btn btn-primary');submit.type='submit';
   form.append(submit,featureButton('Hủy',()=>d.close()));
   form.onsubmit=async e=>{e.preventDefault();if(!ls.value)return;submit.disabled=true;

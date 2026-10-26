@@ -232,3 +232,16 @@ test('WebSocket cannot watch a board without access',async()=>{
   await new Promise(r=>setTimeout(r,30));await call('leaderA',`/boards/${a}`,'PATCH',{title:'Bảng A đã đổi tên'});await new Promise(r=>setTimeout(r,60));
   assert.ok(seenA.some(m=>m.type==='board-changed'));assert.ok(!seenO.some(m=>m.type==='board-changed'));authorized.terminate();outsider.terminate();
 });
+test('copies preserve disabled historical assignees without granting access',async()=>{
+  const inactive=db.prepare("INSERT INTO users(username,name,password_hash,disabled) VALUES ('legacy.inactive','Người dùng cũ','unused',1)").run().lastInsertRowid;
+  const id=await newCard();db.prepare('INSERT INTO card_members(card_id,user_id) VALUES (?,?)').run(id,inactive);
+  const group=db.prepare("INSERT INTO checklist_groups(card_id,title) VALUES (?,'Dữ liệu cũ')").run(id).lastInsertRowid;
+  db.prepare("INSERT INTO checklist_items(card_id,group_id,text,user_id,due_date) VALUES (?,?,'Việc con cũ',?,'2026-10-26')").run(id,group,inactive);
+  const copied=(await call('admin',`/cards/${id}/copy`,'POST',{})).id;
+  assert.equal(db.prepare('SELECT user_id FROM card_members WHERE card_id=?').get(copied).user_id,inactive);
+  assert.equal(db.prepare('SELECT user_id FROM checklist_items WHERE card_id=?').get(copied).user_id,inactive);
+  const without=(await call('admin',`/cards/${id}/copy`,'POST',{members:false})).id;
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM card_members WHERE card_id=?').get(without).n,0);assert.equal(db.prepare('SELECT user_id FROM checklist_items WHERE card_id=?').get(without).user_id,null);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM board_members WHERE user_id=?').get(inactive).n,0);
+  await call('','/login','POST',{username:'legacy.inactive',password:'anything'},401);
+});

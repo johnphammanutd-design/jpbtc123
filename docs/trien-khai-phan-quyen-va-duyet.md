@@ -9,7 +9,7 @@
 - Nhân viên/leader gửi duyệt; người duyệt yêu cầu sửa hoặc duyệt hoàn thành. Người thực hiện không tự duyệt. Công việc do leader thực hiện cần giám đốc duyệt. Lịch sử duyệt được giữ lại.
 - Chọn các cột của quy trình trong Menu → Phân quyền & team. Bảng có các tên cột mặc định sẽ tự nhận cấu hình Chờ duyệt / Hoàn thành / Đang làm. Bảng có cột khác có thể giữ nguyên cột hoặc cấu hình riêng.
 - Sửa nội dung công việc đang chờ/đã duyệt sẽ mở lại công việc. Hoàn thành qua tự động hóa không bỏ qua bước duyệt. Việc lặp sau khi được duyệt chuyển hạn, xóa dấu checklist và bắt đầu chu kỳ duyệt mới.
-- Sao chép giữ ngày/giờ, cấu hình lặp, nhắc hạn, nhãn, thành viên, checklist, trường tùy chỉnh và đính kèm theo lựa chọn. Sao chép bảng giữ quyền và cấu hình tự động hóa. Di chuyển giữa bảng ánh xạ nhãn/trường; yêu cầu cấp quyền bảng đích cho người nhận việc trước.
+- Sao chép giữ cả tham chiếu người nhận việc đã khóa (không cấp lại quyền đăng nhập), ngày/giờ, cấu hình lặp, nhắc hạn, nhãn, thành viên, checklist, trường tùy chỉnh và đính kèm theo lựa chọn. Sao chép bảng giữ quyền và cấu hình tự động hóa. Di chuyển giữa bảng ánh xạ nhãn/trường; yêu cầu cấp quyền bảng đích cho người nhận việc trước.
 - Checklist có nhiều nhóm, người phụ trách/hạn từng việc con và chuyển việc con thành thẻ. Có sửa bình luận/phản ứng, chỉnh nhãn/màu, trường ô đánh dấu, sửa nhanh, di chuyển thẻ và thao tác hàng loạt với cột.
 - Sửa lệch ngày Lịch và màn hình Bảng kê còn hiện trong Planner. Planner tự hiện việc được giao có hạn. Nhắc hạn xét giờ Việt Nam mỗi phút, loại công việc đã lưu trữ/bảng đã đóng.
 - Thêm tổng quan theo team, bộ lọc bất kỳ/tất cả trong nhóm thành viên/nhãn, bộ lọc hoạt động, ẩn cột không có kết quả, xuất JSON dữ liệu bảng. Xuất JSON không thay thế backup SQLite.
@@ -82,3 +82,5 @@ Tài khoản demo: `admin`, `leader.demo`, `staff.demo`; mật khẩu demo chung
 Chưa làm ứng dụng iOS native, push APNs/FCM, đồng bộ lịch ngoài, offline sync, các chế độ Timeline/Map, chợ Power-Ups hoặc toàn bộ bộ máy Butler của Trello. Table hiện vẫn là bảng kê cơ bản; mô tả có toolbar Markdown và xem trước, chưa phải bộ soạn thảo WYSIWYG đầy đủ. Mirror trên web mở thẻ gốc để sửa; cần quyền cả bảng gốc và bảng đặt mirror. Chưa kiểm chứng gửi push thực tế hoặc AI trên production.
 
 Máy Codex đang thiết lập đăng nhập GitHub CLI và SSH theo lựa chọn của chủ dự án; cần người dùng hoàn tất đăng nhập và cấp khóa công khai trên VPS. Cần kết nối hợp lệ hoặc chuyển gói mã cho người đang có quyền triển khai; không gửi khóa riêng/mật khẩu qua chat.
+
+Thư viện `body-parser` được khóa ở bản 1.20.9 để nhận bản vá [GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828).
