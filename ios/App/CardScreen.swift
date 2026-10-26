@@ -86,13 +86,12 @@ struct CardScreen: View {
     }
     @ViewBuilder func reviewButtons(_ c: Record, _ s: BoardSnapshot) -> some View {
         let active = !c.flag("archived") && !s.board.flag("closed") && !c.flag("is_template")
-        let selfAssigned = s.members(of: c).contains { $0.number("user_id") == state.user?.id }
-        let canReview = !selfAssigned && (c.number("reviewer_id") == state.user?.id || state.isDirector)
+        let permission = ReviewCapabilities(card: c, snapshot: s, review: review, user: state.user ?? Record())
         if c.flag("archived") {
             Button("Khôi phục thẻ") { run { _ = try await state.mutate("/api/cards/\(resolvedID)", "PATCH", ["archived": .bool(false)]) } }.buttonStyle(.borderedProminent)
-        } else if active, c.text("approval_state") == "pending", canReview {
+        } else if active, c.text("approval_state") == "pending", permission.canDecide {
             HStack { Button("Duyệt hoàn thành") { reviewAction("approve") }.buttonStyle(.borderedProminent); Button("Yêu cầu sửa") { reviewAction("request_changes") }.buttonStyle(.bordered) }.disabled(busy)
-        } else if active, review["can_submit"].flag, !c.flag("due_complete"), c.text("approval_state") != "pending" {
+        } else if permission.canSubmit {
             Button("Gửi duyệt") { reviewAction("submit") }.buttonStyle(.borderedProminent).disabled(busy)
         }
     }

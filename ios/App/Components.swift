@@ -10,7 +10,7 @@ extension Color {
         self.init(red: Double((n >> 16) & 255) / 255, green: Double((n >> 8) & 255) / 255, blue: Double(n & 255) / 255)
     }
 }
-func dateString(_ date: Date) -> String { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
+func dateString(_ date: Date) -> String { CompanyClock.day(date) }
 func today() -> String { dateString(Date()) }
 struct EmptyState: View {
     var title = "Chưa có dữ liệu"
@@ -112,7 +112,7 @@ struct CardTile: View {
             HStack(spacing: 8) {
                 if card.flag("is_template") { Badge(text: "Mẫu") }
                 if card.number("mirror_of") > 0 { Image(systemName: "rectangle.on.rectangle") }
-                if !card.text("due_date").isEmpty { Label(card.text("due_date") + (card.text("due_time").isEmpty ? "" : " · \(card.text("due_time"))"), systemImage: "clock").foregroundStyle(card.text("due_date") < today() && !card.flag("due_complete") ? .red : .secondary) }
+                if !card.text("due_date").isEmpty { Label(card.text("due_date") + (card.text("due_time").isEmpty ? "" : " · \(card.text("due_time"))"), systemImage: "clock").foregroundStyle(CompanyClock.overdue(card) ? .red : .secondary) }
                 Spacer(minLength: 0)
                 if let snapshot {
                     let checks = snapshot.checklist(of: card)
@@ -137,11 +137,7 @@ struct ActivityList: View {
             Text(row.text("created_at")).font(.caption).foregroundStyle(.secondary)
         }.padding(.vertical, 5) }
     }
-    func activityText(_ r: Record) -> String {
-        let d = r["data"].parsed
-        let names = ["card_created":"Tạo thẻ", "card_moved":"Di chuyển thẻ", "card_updated":"Cập nhật thẻ", "card_archived":"Lưu trữ thẻ", "card_completed":"Hoàn thành", "review_submitted":"Gửi duyệt", "review_approved":"Duyệt hoàn thành", "review_changes":"Yêu cầu chỉnh sửa", "comment_added":"Bình luận", "attachment_added":"Thêm đính kèm", "members_changed":"Thay đổi người phụ trách", "checklist_updated":"Cập nhật checklist", "labels_changed":"Cập nhật nhãn"]
-        return (names[r.text("type")] ?? r.text("type").replacingOccurrences(of: "_", with: " ")) + " · " + (d["text"].string.isEmpty ? (d["title"].string.isEmpty ? r.text("card_title") : d["title"].string) : d["text"].string)
-    }
+    func activityText(_ r: Record) -> String { EventText.activity(r) }
 }
 struct DestinationRequest: Identifiable {
     let id = UUID()

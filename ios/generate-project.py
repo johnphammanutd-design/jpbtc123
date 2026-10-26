@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a dependency-free Xcode project; preserves signing in xcconfig.local if supplied."""
+"""Generate a dependency-free Xcode project and separate production/demo Run schemes."""
 import hashlib, pathlib, plistlib
 root = pathlib.Path(__file__).resolve().parent
 def ident(s): return hashlib.sha1(s.encode()).hexdigest()[:24].upper()
@@ -35,4 +35,6 @@ scheme='''<?xml version="1.0" encoding="UTF-8"?><Scheme LastUpgradeVersion="1610
 (root/'Kairetic.xcodeproj/xcshareddata/xcschemes/Kairetic.xcscheme').write_text(scheme)
 print('Generated Kairetic.xcodeproj')
 
-(root/"Kairetic.xcodeproj/xcshareddata/xcschemes/Kairetic Demo.xcscheme").write_text(scheme.replace("</BuildableProductRunnable></LaunchAction>", '</BuildableProductRunnable><EnvironmentVariables><EnvironmentVariable key="KAIRETIC_API_ORIGIN" value="http://localhost:3101" isEnabled="YES"/></EnvironmentVariables></LaunchAction>'))
+demo = scheme.replace("</BuildableProductRunnable></LaunchAction>", '</BuildableProductRunnable><EnvironmentVariables><EnvironmentVariable key="KAIRETIC_API_ORIGIN" value="http://localhost:3101" isEnabled="YES"/></EnvironmentVariables></LaunchAction>')
+demo = demo.replace('selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB"', 'selectedDebuggerIdentifier=""').replace('selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB"', 'selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.PosixSpawn"')
+(root/"Kairetic.xcodeproj/xcshareddata/xcschemes/Kairetic Demo.xcscheme").write_text(demo)

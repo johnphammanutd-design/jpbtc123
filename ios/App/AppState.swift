@@ -83,11 +83,27 @@ struct CredentialVault {
         async let u = call("/api/users")
         async let o = call("/api/overview")
         async let n = call("/api/notifications")
-        let result = try await (b, u, o, n)
+        async let me = call("/api/me")
+        let result = try await (b, u, o, n, me)
         // Do not restore protected state after a concurrent 401 or logout.
         guard token != nil else { return }
         boards = result.0["boards"].rows; users = result.1["users"].rows; overview = result.2
-        notifications = result.3["notifications"].rows; unread = result.3["unread"].int
+        notifications = result.3["notifications"].rows; unread = result.3["unread"].int; user = Record(result.4["user"])
+    }
+    func myWork() async throws -> [Record] {
+        let available = boards.filter { !$0.flag("closed") }
+        let snapshots = try await withThrowingTaskGroup(of: BoardSnapshot?.self) { group in
+            for board in available {
+                group.addTask {
+                    do { return BoardSnapshot(try await self.call("/api/boards/\(board.id)")) }
+                    catch APIError.server(let status, _) where status == 403 || status == 404 { return nil }
+                }
+            }
+            var result: [BoardSnapshot] = []
+            for try await snapshot in group { if let snapshot { result.append(snapshot) } }
+            return result
+        }
+        return WorkFeed.mine(snapshots: snapshots, userID: user?.id ?? 0)
     }
     @discardableResult func mutate(_ path: String, _ method: String = "POST", _ body: [String: JSON] = [:]) async throws -> JSON {
         let result = try await call(path, method, body)

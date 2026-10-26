@@ -6,8 +6,8 @@ struct BoardScreen: View {
     @State private var snapshot: BoardSnapshot?
     @State private var error: String?
     @State private var view = "Kanban"
-    @State private var filter: CardFilter = .all
-    @State private var query = ""
+    @State private var filter = BoardFilter()
+    @State private var showFilters = false
     @State private var selectedList = 0
     @State private var selectedDate = Date()
     @State private var edit: EditRequest?
@@ -19,7 +19,8 @@ struct BoardScreen: View {
                     VStack(spacing: 10) {
                         Picker("Cách xem", selection: $view) { ForEach(["Kanban", "Lịch", "Bảng kê"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
                         HStack {
-                            Menu { Picker("Bộ lọc", selection: $filter) { ForEach(CardFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) } } } label: { Label(filter == .all ? "Bộ lọc" : filter.rawValue, systemImage: "line.3.horizontal.decrease.circle") }
+                            Button { showFilters = true } label: { Label(filter.active ? "Đang lọc" : "Bộ lọc", systemImage: filter.active ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") }
+                            Menu { Button("Thu gọn tất cả cột") { collapsed = Set(s.lists.map(\.id)) }; Button("Mở rộng tất cả cột") { collapsed = [] } } label: { Image(systemName: "rectangle.compress.vertical").accessibilityLabel("Thu gọn hoặc mở rộng cột") }
                             Spacer()
                             if !s.board.flag("closed") { Button { createCard(s) } label: { Label("Thẻ mới", systemImage: "plus") } }
                         }.font(.subheadline).padding(.vertical, 3)
@@ -43,11 +44,12 @@ struct BoardScreen: View {
                     Button { state.handle { _ = try await state.mutate("/api/boards/\(boardID)/star"); try await load() } } label: { Image(systemName: state.boards.first { $0.id == boardID }?.flag("starred") == true ? "star.fill" : "star").accessibilityLabel("Gắn sao bảng") }
                     NavigationLink { BoardSettings(boardID: boardID) } label: { Image(systemName: "ellipsis.circle").accessibilityLabel("Menu bảng") }
                 }
-                .searchable(text: $query, prompt: "Tìm thẻ trong bảng")
+                .searchable(text: $filter.text, prompt: "Tìm thẻ trong bảng")
             } else if let error { VStack { EmptyState(title: error, symbol: "wifi.exclamationmark"); Button("Thử lại") { state.handle { try await load() } } } }
             else { ProgressView("Đang tải bảng…") }
         }
         .sheet(item: $edit) { EditSheet($0) }
+        .sheet(isPresented: $showFilters) { if let snapshot { BoardFilterSheet(filter: $filter, snapshot: snapshot) } }
         .task(id: state.revision) { do { try await load(); state.watch(boardID) } catch is CancellationError {} catch { self.error = error.localizedDescription } }
         .onDisappear { state.watch(nil) }
     }
@@ -55,12 +57,14 @@ struct BoardScreen: View {
         do { let data = try await state.call("/api/boards/\(boardID)"); try Task.checkCancellation(); let s = BoardSnapshot(data); snapshot = s; error = nil; if !s.lists.contains(where: { $0.id == selectedList }) { selectedList = s.lists.first?.id ?? 0 } }
         catch { if case APIError.server(let status, _) = error, [401, 403, 404].contains(status) { snapshot = nil }; throw error }
     }
-    func filtered(_ s: BoardSnapshot) -> [Record] { s.cards.filter { filter.includes($0, snapshot: s, userID: state.user?.id ?? 0, today: today()) && (query.isEmpty || ($0.title + " " + $0.text("description")).localizedCaseInsensitiveContains(query)) } }
+    func filtered(_ s: BoardSnapshot) -> [Record] { s.cards.filter { filter.includes($0, snapshot: s, userID: state.user?.id ?? 0) } }
     func column(_ list: Record, _ s: BoardSnapshot) -> some View {
         let cards = filtered(s).filter { $0.number("list_id") == list.id }
+        let total = s.cards.filter { $0.number("list_id") == list.id }.count
+        let showWIP = s.board["powerups"].parsed["wip"].flag && list.number("wip_limit") > 0
         return ScrollView {
             VStack(spacing: 12) {
-                HStack { Text(list.title).font(.title3.bold()); Badge(text: "\(cards.count)" + (list.number("wip_limit") > 0 ? " / \(list.number("wip_limit"))" : ""), color: list.number("wip_limit") > 0 && cards.count > list.number("wip_limit") ? .red : brand); Spacer(); Menu {
+                HStack { Text(list.title).font(.title3.bold()); Badge(text: showWIP ? "\(total) / \(list.number("wip_limit"))" : "\(cards.count)", color: showWIP && total > list.number("wip_limit") ? .red : brand); Spacer(); Menu {
                     Button(collapsed.contains(list.id) ? "Mở rộng cột" : "Thu gọn cột") { if !collapsed.insert(list.id).inserted { collapsed.remove(list.id) } }
                     Button("Theo dõi / bỏ theo dõi cột") { state.handle { _ = try await state.mutate("/api/lists/\(list.id)/watch") } }
                     if s.canManage {
@@ -74,6 +78,7 @@ struct BoardScreen: View {
                 } label: { Image(systemName: "ellipsis").padding(8).accessibilityLabel("Menu cột \(list.title)") } }
                 if !collapsed.contains(list.id) {
                     if cards.isEmpty { EmptyState(title: "Cột này chưa có thẻ") }
+                    if filter.active { Text("Hiển thị \(cards.count)/\(total) thẻ").font(.caption).foregroundStyle(.secondary) }
                     ForEach(cards) { card in
                         NavigationLink { CardScreen(cardID: card.id) } label: { CardTile(card: card, snapshot: s) }.buttonStyle(.plain).draggable("kairetic-card:\(card.id)")
                             .dropDestination(for: String.self) { items, _ in
@@ -87,6 +92,7 @@ struct BoardScreen: View {
                     if !s.board.flag("closed") { Button { createCard(s, list: list.id) } label: { Label("Thêm thẻ", systemImage: "plus") }.frame(maxWidth: .infinity).padding(10).background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 12)) }
                 }
             }.padding(.horizontal).padding(.top, 10).padding(.bottom, 45)
+                .background(list.text("color").isEmpty ? Color.clear : Color(hex: list.text("color")).opacity(0.12))
         }.refreshable { do { try await load() } catch { self.error = error.localizedDescription } }
         .dropDestination(for: String.self) { items, _ in
             guard !s.board.flag("closed"), let item = items.first, item.hasPrefix("kairetic-card:"), let id = Int(item.dropFirst(14)), s.cards.contains(where: { $0.id == id }) else { return false }

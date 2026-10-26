@@ -66,9 +66,12 @@ struct BoardSettings: View {
         let roles = s.rows("boardMemberRoles")
         let people = state.users.filter { user in !user.flag("disabled") || roles.contains { $0.number("user_id") == user.id } }
         if !s.canManage { edit = EditRequest(title: "Quyền truy cập", fields: [], note: s.rows("eligibleMembers").map { $0.title }.joined(separator: "\n"), submit: "Đóng") { _ in }; return }
-        let fields = people.map { u in FormField.pick(String(u.id), u.title, [("none", "Không cấp quyền"), ("member", "Thành viên"), ("manager", "Quản lý bảng")], roles.first { $0.number("user_id") == u.id }?.text("role") ?? "none") }
+        let fields = people.map { u in
+            let ownManagement = !state.isDirector && u.id == state.user?.id
+            return FormField.pick(String(u.id), u.title, ownManagement ? [("manager", "Quản lý bảng")] : [("none", "Không cấp quyền"), ("member", "Thành viên"), ("manager", "Quản lý bảng")], ownManagement ? "manager" : roles.first { $0.number("user_id") == u.id }?.text("role") ?? "none")
+        }
         edit = EditRequest(title: "Quyền truy cập bảng", fields: fields, note: "Giám đốc có quyền toàn công ty. Leader của team gắn với bảng có quyền quản lý theo team.") { v in
-            let members: [JSON] = people.compactMap { u in guard let role = v[String(u.id)]?.string, role != "none" else { return nil }; return .object(["user_id": .id(u.id), "role": .string(role)]) }
+            let members = AccessPayload.boardMembers(selection: v, people: people, actor: state.user ?? Record())
             _ = try await state.mutate("/api/boards/\(boardID)/members", "PUT", ["members": .array(members)])
         }
     }

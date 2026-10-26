@@ -5,7 +5,7 @@ import SwiftUI
     @Environment(\.scenePhase) private var phase
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(state).tint(brand).task { await state.restore() }
+            RootView().environmentObject(state).tint(brand).environment(\.timeZone, CompanyClock.timeZone).task { await state.restore() }
                 .onChange(of: phase) { _, value in
                     if value == .active, state.user != nil { state.connect(); state.handle { try await state.refresh(); state.revision += 1 } }
                     if value == .background { state.disconnect() }
@@ -101,7 +101,10 @@ struct OverviewScreen: View {
 struct TaskHome: View {
     @EnvironmentObject var state: AppState
     @State private var tab = "boards"
-    @State private var planner: JSON = .null
+    @State private var myCards: [Record] = []
+    @State private var workStatus = "active"
+    @State private var workLoading = false
+    @State private var workError: String?
     @State private var edit: EditRequest?
     @State private var closed = false
     var body: some View {
@@ -122,7 +125,12 @@ struct TaskHome: View {
                     if state.boards.filter({ $0.flag("closed") == closed }).isEmpty { EmptyState(title: closed ? "Chưa có bảng đã đóng" : "Chưa được cấp quyền vào bảng") }
                     Toggle("Bảng đã đóng", isOn: $closed).font(.subheadline).padding(.vertical)
                 } else {
-                    let cards = tab == "mine" ? planner["myCards"].rows : state.overview["cards"].rows.filter { $0.text("approval_state") == "pending" && ($0.number("reviewer_id") == state.user?.id || state.isDirector) }
+                    if tab == "mine" {
+                        Picker("Trạng thái việc của tôi", selection: $workStatus) { Text("Đang làm").tag("active"); Text("Đã xong").tag("done"); Text("Tất cả").tag("all") }.pickerStyle(.segmented)
+                        if workLoading { ProgressView("Đang tải công việc…") }
+                        if let workError { Text(workError).font(.footnote).foregroundStyle(.red) }
+                    }
+                    let cards = tab == "mine" ? myCards.filter { workStatus == "all" || $0.flag("due_complete") == (workStatus == "done") } : state.overview["cards"].rows.filter { $0.text("approval_state") == "pending" && ($0.number("reviewer_id") == state.user?.id || state.isDirector) }
                     if cards.isEmpty { EmptyState(title: "Không có công việc") }
                     ForEach(cards) { c in NavigationLink { CardScreen(cardID: c.id) } label: { CardTile(card: c) }.buttonStyle(.plain) }
                 }
@@ -130,9 +138,17 @@ struct TaskHome: View {
         }.background(canvas).navigationTitle("Task")
         .toolbar { if state.canCreate { Button { edit = EditRequest(title: "Tạo bảng", fields: [.text("title", "Tên bảng", required: true)]) { v in _ = try await state.mutate("/api/boards", "POST", v) } } label: { Image(systemName: "plus").accessibilityLabel("Tạo bảng") } } }
         .sheet(item: $edit) { EditSheet($0) }
-        .task(id: state.revision) { do { planner = try await state.call("/api/planner") } catch { state.message = error.localizedDescription } }
-        .refreshable { do { try await state.refresh(); planner = try await state.call("/api/planner") } catch { state.message = error.localizedDescription } }
+        .task(id: "\(state.revision)-\(tab)") { if tab == "mine" { await loadMyWork() } }
+        .refreshable { do { try await state.refresh(); if tab == "mine" { await loadMyWork() } } catch { state.message = error.localizedDescription } }
     }
+    func loadMyWork() async {
+        workLoading = true; workError = nil
+        defer { workLoading = false }
+        do { let cards = try await state.myWork(); try Task.checkCancellation(); myCards = cards }
+        catch is CancellationError {}
+        catch { myCards = []; workError = "Chưa tải đủ công việc. Kéo xuống để thử lại. " + error.localizedDescription }
+    }
+
 }
 func boardColor(_ name: String) -> Color {
     switch name { case "forest": return Color(hex: "36765d"); case "sunset": return Color(hex: "b66c53"); case "violet", "purple": return Color(hex: "705aa7"); default: return brand }
@@ -152,10 +168,7 @@ struct NotificationsScreen: View {
         }.navigationTitle("Thông báo").toolbar { Button("Đọc hết") { state.handle { _ = try await state.mutate("/api/notifications/read") } }.disabled(state.unread == 0) }
         .refreshable { do { try await state.refresh() } catch { state.message = error.localizedDescription } }
     }
-    func notificationText(_ n: Record) -> String {
-        let labels = ["assigned":"đã giao việc cho bạn", "mention":"đã nhắc đến bạn", "comment":"đã bình luận", "review_submitted":"đã gửi duyệt", "review_approved":"đã duyệt", "review_changes":"yêu cầu chỉnh sửa", "due_soon":"công việc sắp đến hạn", "due_overdue":"công việc quá hạn", "moved":"đã di chuyển công việc", "completed":"đã hoàn thành công việc"]
-        return n.text("actor_name") + " " + (labels[n.text("type")] ?? n.text("type").replacingOccurrences(of: "_", with: " "))
-    }
+    func notificationText(_ n: Record) -> String { EventText.notification(n) }
 }
 struct SearchScreen: View {
     @EnvironmentObject var state: AppState
