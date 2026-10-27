@@ -331,3 +331,12 @@ Sau khi người dùng mở khóa thiết bị, Xcode đã cài và chạy bản
 Người dùng sau đó mở trực tiếp thẻ QA số 30 trên iPhone. Web lưu mô tả `QA-WEB-LIVE-03: Da cap nhat tu web khi the dang mo tren iPhone.`; Device Hub cho thấy chính mô tả mới tự xuất hiện khi màn thẻ vẫn mở, không kéo để tải lại hay khởi động lại app. Đã xác nhận **web → iPhone thật** cho lần cập nhật này.
 
 Ở chiều ngược lại, người dùng sửa mô tả và bấm Lưu trực tiếp trên iPhone. Đóng/mở lại thẻ 30 ở web đọc được `QA-WEB-LIVE-04: Da luu tu iphone`, khớp nội dung hiển thị trên điện thoại. Đã xác nhận **iPhone thật → web** cho lần lưu này; chỉ mô tả thẻ QA số 30 được sửa.
+
+## Sửa thông báo chặn thao tác khi mất mạng — 27/10/2026
+
+Khi người dùng ngắt mạng trên iPhone rồi quay về app, lần tự tải dữ liệu trong `scenePhase.active` bật hộp thoại “Kết nối internet có vẻ như không hoạt động”. Device Hub cho thấy hộp thoại phủ màn thẻ, chưa ở biểu mẫu sửa; vì vậy không ghi nhận lần này là thử lưu offline thành công.
+
+- Lỗi tải tự động khi quay về app nay hiện thông báo phía trên, có Thử lại/Đóng và không che thao tác. Lỗi hết phiên vẫn đi qua cơ chế đăng xuất/cảnh báo hiện có. Thông báo kết nối được xóa sau lần tải thành công hoặc đăng xuất.
+- Thử lại trên Simulator/demo: đưa app về Home, ngắt proxy loopback, mở lại Kairetic. Thông báo phía trên xuất hiện, không có hộp thoại chặn; vẫn mở Sửa mô tả và nhập được bản nháp. Lưu trả “Đã mất kết nối mạng.”, giữ bản nháp, máy chủ vẫn giữ mô tả cũ. Nối lại không tự lưu; bấm Lưu lại thì biểu mẫu đóng và mô tả mới khớp máy chủ. Proxy ghi nhận đúng một PATCH bị ngắt và một PATCH chuyển thành công.
+- Debug Simulator và Release iPhoneOS arm64 chưa ký đều build thành công. Đợt này chỉ sửa xử lý lỗi/hiển thị khi app hoạt động lại; không đổi Core/API. Bộ 41 test đã qua ở đợt trước; nghiệm thu bản sửa này bằng luồng UI vừa mô tả.
+- Scheme demo được đưa lại về cổng 3101, proxy trở về online. Trên iPhone thật vẫn cần thử lại mở Sửa, lưu khi ngắt mạng và lưu lại sau khi kết nối phục hồi với bản mới.

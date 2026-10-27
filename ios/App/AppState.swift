@@ -29,6 +29,7 @@ struct CredentialVault {
     @Published var restoring = true
     @Published var revision = 0
     @Published var message: String?
+    @Published var refreshNotice: String?
     @Published var connected = false
     let origin: URL
     private var token: String?
@@ -90,6 +91,14 @@ struct CredentialVault {
         guard token != nil else { return }
         boards = result.0["boards"].rows; users = result.1["users"].rows; overview = result.2
         notifications = result.3["notifications"].rows; unread = result.3["unread"].int; user = Record(result.4["user"])
+        refreshNotice = nil
+    }
+    // Returning from Settings while offline must not cover the current form with an alert.
+    func refreshOnActivation() async {
+        do { try await refresh(); revision += 1 }
+        catch is CancellationError {}
+        catch let error as URLError where error.code == .cancelled {}
+        catch { if user != nil { refreshNotice = "Chưa tải được dữ liệu mới. Kiểm tra kết nối rồi thử lại." } }
     }
     func myWork() async throws -> [Record] {
         let available = boards.filter { !$0.flag("closed") }
@@ -120,6 +129,7 @@ struct CredentialVault {
     private func clearSession() {
         disconnect(); vault.clear(); token = nil; user = nil; boards = []; users = []; overview = .null; notifications = []; unread = 0; revision += 1
         boardSubscriptions = BoardSubscriptions(); watchedBoard = nil
+        refreshNotice = nil
         try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("Kairetic"))
     }
     func watch(_ id: Int?, owner: UUID) {

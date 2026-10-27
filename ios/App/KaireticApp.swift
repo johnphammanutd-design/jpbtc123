@@ -7,7 +7,7 @@ import SwiftUI
         WindowGroup {
             RootView().environmentObject(state).tint(brand).environment(\.timeZone, CompanyClock.timeZone).task { await state.restore() }
                 .onChange(of: phase) { _, value in
-                    if value == .active, state.user != nil { state.connect(); state.handle { try await state.refresh(); state.revision += 1 } }
+                    if value == .active, state.user != nil { state.connect(); Task { await state.refreshOnActivation() } }
                     if value == .background { state.disconnect() }
                 }
         }
@@ -28,6 +28,17 @@ struct RootView: View {
                     NavigationStack { NotificationsScreen() }.tabItem { Label("Thông báo", systemImage: "bell") }.badge(state.unread)
                     NavigationStack { ProfileScreen() }.tabItem { Label("Cá nhân", systemImage: "person.crop.circle") }
                 }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if state.user != nil, let notice = state.refreshNotice {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.circle")
+                    Text(notice).font(.footnote)
+                    Spacer(minLength: 0)
+                    Button("Thử lại") { Task { await state.refreshOnActivation() } }.font(.footnote.bold())
+                    Button { state.refreshNotice = nil } label: { Image(systemName: "xmark").accessibilityLabel("Đóng thông báo kết nối") }
+                }.padding(12).background(.regularMaterial)
             }
         }
         .alert("Thông báo", isPresented: Binding(get: { state.message != nil }, set: { if !$0 { state.message = nil } })) { Button("Đóng") { state.message = nil } } message: { Text(state.message ?? "") }
