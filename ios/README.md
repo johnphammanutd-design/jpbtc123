@@ -342,3 +342,12 @@ Khi người dùng ngắt mạng trên iPhone rồi quay về app, lần tự t�
 - Scheme demo được đưa lại về cổng 3101, proxy trở về online. Trên iPhone thật vẫn cần thử lại mở Sửa, lưu khi ngắt mạng và lưu lại sau khi kết nối phục hồi với bản mới.
 
 Bản sửa `f35cd93` sau đó đã được Xcode cài/chạy bằng scheme Kairetic trên iPhone 16 Pro Max; Tổng quan hiển thị phiên công ty đã khôi phục. Người dùng đã xác nhận bật lại kết nối trước khi cài. Đang chờ kết quả lần thử offline mới trên thiết bị thật; web vẫn đọc được mô tả `QA-WEB-LIVE-04: Da luu tu iphone` ở thời điểm chuẩn bị.
+
+Ở lần thử tiếp theo trên iPhone thật, người dùng báo app hiện “Kết nối internet có vẻ như không hoạt động”, sau khi bật lại Wi-Fi thì bấm Lưu thành công. Đóng/mở lại thẻ 30 trên web đọc được `QA-offline-05: Kiem tra luu mat mang`, khớp nội dung Device Hub hiển thị trên iPhone. Đã xác nhận lỗi mạng được báo và thử lại lưu thành công trên thiết bị thật theo thao tác người dùng. Không ghi nhận số request vật lý hay khẳng định đã quan sát trực tiếp bản nháp trong thời điểm chưa kết nối lại; kiểm tra không tự phát lại request trước lần thử lại có bằng chứng riêng ở demo/proxy.
+
+## Thu hồi quyền khi đang xem tệp trên iPhone thật — 27/10/2026
+
+- Người dùng mở `qa-iphone-access.txt` của thẻ 30; Device Hub hiển thị Quick Look với nội dung văn bản QA giả lập.
+- Web tạm đặt tài khoản nhân viên đang thử từ **Thành viên → Chưa cấp quyền**, chỉ ở bảng QA số 7, rồi Lưu phân quyền. Quick Look trên iPhone tự đóng, màn thẻ chuyển sang “Bạn không còn quyền xem bảng này”. Không yêu cầu người dùng đóng tệp hay tải lại để đạt kết quả này.
+- Ngay sau khi ghi bằng chứng, web đặt lại **Thành viên** và lưu. iPhone tự tải lại thẻ 30 với mô tả hiện có. Đã kiểm tra lại quyền bảng: tài khoản thử là Thành viên; quản trị viên vẫn Quản lý bảng; các tài khoản khác vẫn Chưa cấp quyền, bảng không gắn team. Không thay quyền các bảng công việc khác.
+- Việc xóa tệp tạm được thực hiện trong bản sửa đã build; lần nghiệm thu thiết bị này xác nhận đóng giao diện xem tệp và chặn nội dung thẻ, không kiểm tra trực tiếp filesystem riêng của iPhone.
