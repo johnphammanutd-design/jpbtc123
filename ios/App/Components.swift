@@ -88,7 +88,7 @@ struct EditSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Hủy") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) {
-                    if busy { ProgressView() } else { Button(request.submit) { save() }.fontWeight(.semibold) }
+                    if busy { ProgressView() } else { Button(request.submit) { save() }.fontWeight(.semibold).keyboardShortcut("s", modifiers: .command) }
                 }
             }.interactiveDismissDisabled(busy)
         }.tint(brand)

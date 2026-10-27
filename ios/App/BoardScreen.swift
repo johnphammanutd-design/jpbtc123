@@ -4,6 +4,7 @@ struct BoardScreen: View {
     @EnvironmentObject var state: AppState
     @Environment(\.dynamicTypeSize) private var typeSize
     let boardID: Int
+    @State private var watchOwner = UUID()
     @State private var snapshot: BoardSnapshot?
     @State private var error: String?
     @State private var view = "Kanban"
@@ -73,8 +74,9 @@ struct BoardScreen: View {
         .sheet(item: $quickEdit) { QuickEditSheet($0) }
         .sheet(isPresented: $showTemplates) { if let snapshot { TemplatePickerSheet(snapshot: snapshot, listID: templateListID == 0 ? snapshot.lists.first?.id ?? 0 : templateListID) } }
         .sheet(isPresented: $showFilters) { if let snapshot { BoardFilterSheet(filter: $filter, snapshot: snapshot) } }
-        .task(id: state.revision) { do { try await load(); state.watch(boardID) } catch is CancellationError {} catch { self.error = error.localizedDescription } }
-        .onDisappear { state.watch(nil) }
+        .onAppear { state.watch(boardID, owner: watchOwner) }
+        .task(id: state.revision) { do { try await load() } catch is CancellationError {} catch { self.error = error.localizedDescription } }
+        .onDisappear { state.watch(nil, owner: watchOwner) }
     }
     private var viewPicker: some View { Picker("Cách xem", selection: $view) { ForEach(["Kanban", "Lịch", "Bảng kê"], id: \.self) { Text($0) } } }
     func load() async throws {

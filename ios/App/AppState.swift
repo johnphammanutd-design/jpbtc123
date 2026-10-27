@@ -35,6 +35,7 @@ struct CredentialVault {
     private var socket: URLSessionWebSocketTask?
     private var socketTask: Task<Void, Never>?
     private var watchedBoard: Int?
+    private var boardSubscriptions = BoardSubscriptions()
     private var reloadTask: Task<Void, Never>?
     var api: API { API(origin: origin, token: token) }
     var isDirector: Bool { user?.flag("is_admin") == true }
@@ -118,9 +119,15 @@ struct CredentialVault {
     }
     private func clearSession() {
         disconnect(); vault.clear(); token = nil; user = nil; boards = []; users = []; overview = .null; notifications = []; unread = 0; revision += 1
+        boardSubscriptions = BoardSubscriptions(); watchedBoard = nil
         try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("Kairetic"))
     }
-    func watch(_ id: Int?) { watchedBoard = id; sendWatch() }
+    func watch(_ id: Int?, owner: UUID) {
+        boardSubscriptions.set(id, owner: owner)
+        let next = boardSubscriptions.boardID
+        guard next != watchedBoard else { return }
+        watchedBoard = next; sendWatch()
+    }
     private func sendWatch() {
         guard let socket, let data = try? JSONEncoder().encode(JSON.object(["type": .string("watch"), "boardId": watchedBoard.map(JSON.id) ?? .null])), let s = String(data: data, encoding: .utf8) else { return }
         Task { try? await socket.send(.string(s)) }

@@ -8,6 +8,9 @@ struct CardScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
     let cardID: Int
+    @State private var watchOwner = UUID()
+    @State private var accessBoardID: Int?
+    @State private var accessVersion = 0
     @State private var resolvedID = 0
     @State private var snapshot: BoardSnapshot?
     @State private var card: Record?
@@ -55,10 +58,20 @@ struct CardScreen: View {
             else { ProgressView("Đang tải thẻ…") }
         }.navigationTitle("Chi tiết công việc").navigationBarTitleDisplayMode(.inline)
         .task(id: state.revision) { await reload() }
+        .onReceive(state.$boards) { boards in
+            guard let accessBoardID, !boards.contains(where: { $0.id == accessBoardID }) else { return }
+            accessVersion += 1
+            clearProtectedContent()
+            error = "Bạn không còn quyền xem bảng này."
+        }
+        .onDisappear { state.watch(nil, owner: watchOwner) }
         .sheet(item: $edit) { EditSheet($0) }
         .sheet(item: $destinationRequest) { DestinationSheet($0) }
         .sheet(item: $assignment) { AssignmentSheet($0) }
         .quickLookPreview($preview)
+        .onChange(of: preview) { old, new in
+            if let old, old != new { try? FileManager.default.removeItem(at: old.deletingLastPathComponent()) }
+        }
         .photosPicker(isPresented: $pickingPhoto, selection: $selectedPhoto, matching: .images, preferredItemEncoding: .compatible)
         .task(id: selectedPhoto) { await uploadSelectedPhoto() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
@@ -68,15 +81,22 @@ struct CardScreen: View {
     }
     private var sectionPicker: some View { Picker("Chi tiết thẻ", selection: $tab) { ForEach(["Nội dung", "Trao đổi", "Hoạt động"], id: \.self) { Text($0) } } }
     func reload() async {
+        let startedAccessVersion = accessVersion
         do {
             var id = cardID
             var location = try await state.call("/api/cards/\(id)/locate")
+            try Task.checkCancellation()
+            accessBoardID = location["board_id"].int
+            state.watch(location["board_id"].int, owner: watchOwner)
             var data = try await state.call("/api/boards/\(location["board_id"].int)")
             var s = BoardSnapshot(data)
             var found = s.cards.first { $0.id == id }
             if found == nil, location["archived"].flag { found = try await state.call("/api/boards/\(s.board.id)/archived")["cards"].rows.first { $0.id == id } }
             if let mirror = found, mirror.number("mirror_of") > 0 {
                 id = mirror.number("mirror_of"); location = try await state.call("/api/cards/\(id)/locate"); data = try await state.call("/api/boards/\(location["board_id"].int)"); s = BoardSnapshot(data); found = s.cards.first { $0.id == id }
+                try Task.checkCancellation()
+                accessBoardID = location["board_id"].int
+                state.watch(location["board_id"].int, owner: watchOwner)
                 if found == nil, location["archived"].flag { found = try await state.call("/api/boards/\(s.board.id)/archived")["cards"].rows.first { $0.id == id } }
             }
             guard let found else { throw APIError.server(404, "Không tìm thấy thẻ trong bảng đang hoạt động.") }
@@ -88,11 +108,18 @@ struct CardScreen: View {
             async let ai = state.call("/api/ai/status")
             let results = try await (r, cm, at, ac, ai)
             try Task.checkCancellation()
-            resolvedID = id; snapshot = s; card = found; review = results.0; comments = results.1["comments"].rows; attachments = results.2["attachments"].rows; activity = results.3["activity"].rows; aiEnabled = results.4["enabled"].flag; error = nil; state.watch(s.board.id)
+            guard startedAccessVersion == accessVersion else { throw CancellationError() }
+            resolvedID = id; snapshot = s; card = found; review = results.0; comments = results.1["comments"].rows; attachments = results.2["attachments"].rows; activity = results.3["activity"].rows; aiEnabled = results.4["enabled"].flag; error = nil
         } catch is CancellationError {} catch {
-            if case APIError.server(let status, _) = error, [401, 403, 404].contains(status) { card = nil; snapshot = nil; comments = []; attachments = []; activity = []; review = .null }
+            if case APIError.server(let status, _) = error, [401, 403, 404].contains(status) { clearProtectedContent() }
             self.error = error.localizedDescription
         }
+    }
+    func clearProtectedContent() {
+        if let preview { try? FileManager.default.removeItem(at: preview.deletingLastPathComponent()) }
+        preview = nil; card = nil; snapshot = nil; comments = []; attachments = []; activity = []; review = .null
+        edit = nil; assignment = nil; destinationRequest = nil; aiResult = nil; aiEnabled = false
+        state.watch(nil, owner: watchOwner)
     }
     @ViewBuilder func reviewButtons(_ c: Record, _ s: BoardSnapshot) -> some View {
         let active = !c.flag("archived") && !s.board.flag("closed") && !c.flag("is_template")
@@ -268,7 +295,14 @@ struct CardScreen: View {
     func openAttachment(_ a: Record) {
         if a.text("url").hasPrefix("/u/") {
             run {
+                guard let boardID = snapshot?.board.id else { throw APIError.server(403, "Bạn không còn quyền xem bảng này.") }
+                let startedAccessVersion = accessVersion
                 let data = try await state.file(a.text("url"))
+                try Task.checkCancellation()
+                guard startedAccessVersion == accessVersion, card != nil,
+                      state.boards.contains(where: { $0.id == boardID }) else {
+                    throw APIError.server(403, "Bạn không còn quyền xem bảng này.")
+                }
                 let directory = FileManager.default.temporaryDirectory.appendingPathComponent("Kairetic/\(UUID().uuidString)", isDirectory: true)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
                 let filename = URL(fileURLWithPath: a.text("name")).lastPathComponent
