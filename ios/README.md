@@ -324,7 +324,7 @@ Do điều khiển iPhone thật qua Device Hub/Phản chiếu iPhone chưa ho�
 - **Kiểm chứng:** **41 test Swift/API qua, 0 lỗi**, gồm 3 test mới về chuyển màn/giải phóng đăng ký realtime. Debug Simulator build và chạy bằng Xcode; Release iPhoneOS arm64 chưa ký build thành công.
 - Scheme **Kairetic Demo** đã đưa về `http://localhost:3101`; cấu hình proxy tạm `3102` không được lưu vào project. Wi-Fi trên Mac đã đưa lại trạng thái **tắt** sau lần bật tạm được người dùng đồng ý.
 
-Phần còn lại trên thiết bị thật: lặp lại đồng bộ hai chiều, lỗi lưu khi đổi mạng, thu hồi/khôi phục quyền trong lúc xem tệp và chuyển nền. Không kết luận các tình huống này đã qua trên iPhone thật từ kết quả Simulator.
+Tại thời điểm hoàn tất thử trên Simulator, phần thiết bị thật còn cần lặp lại đồng bộ hai chiều, lỗi lưu khi đổi mạng, thu hồi/khôi phục quyền trong lúc xem tệp và chuyển nền. Các kết quả nghiệm thu thiết bị thật được bổ sung bên dưới, tách khỏi kết quả Simulator.
 
 Sau khi người dùng mở khóa thiết bị, Xcode đã cài và chạy bản sửa `289bd9e` bằng scheme **Kairetic** trên **iPhone 16 Pro Max / iOS 27.0.1**. Device Hub hiển thị Tổng quan với phiên công ty được khôi phục, không cần đăng nhập lại. Thử chuyển Task từ Mac vẫn không được điện thoại nhận; phần nghiệm thu tương tác tiếp tục cần thao tác trực tiếp trên iPhone. Lần cài này chưa chứng minh các tình huống ổn định còn lại đã qua trên thiết bị thật.
 
@@ -351,3 +351,4 @@ Bản sửa `f35cd93` sau đó đã được Xcode cài/chạy bằng scheme Kai
 - Web tạm đặt tài khoản nhân viên đang thử từ **Thành viên → Chưa cấp quyền**, chỉ ở bảng QA số 7, rồi Lưu phân quyền. Quick Look trên iPhone tự đóng, màn thẻ chuyển sang “Bạn không còn quyền xem bảng này”. Không yêu cầu người dùng đóng tệp hay tải lại để đạt kết quả này.
 - Ngay sau khi ghi bằng chứng, web đặt lại **Thành viên** và lưu. iPhone tự tải lại thẻ 30 với mô tả hiện có. Đã kiểm tra lại quyền bảng: tài khoản thử là Thành viên; quản trị viên vẫn Quản lý bảng; các tài khoản khác vẫn Chưa cấp quyền, bảng không gắn team. Không thay quyền các bảng công việc khác.
 - Việc xóa tệp tạm được thực hiện trong bản sửa đã build; lần nghiệm thu thiết bị này xác nhận đóng giao diện xem tệp và chặn nội dung thẻ, không kiểm tra trực tiếp filesystem riêng của iPhone.
+- Sau khi khôi phục quyền, người dùng xác nhận xem lại được tệp; Device Hub cũng hiển thị Quick Look với đúng nội dung QA khi app được mở lại.
