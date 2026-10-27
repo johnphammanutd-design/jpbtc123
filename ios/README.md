@@ -352,3 +352,21 @@ Bản sửa `f35cd93` sau đó đã được Xcode cài/chạy bằng scheme Kai
 - Ngay sau khi ghi bằng chứng, web đặt lại **Thành viên** và lưu. iPhone tự tải lại thẻ 30 với mô tả hiện có. Đã kiểm tra lại quyền bảng: tài khoản thử là Thành viên; quản trị viên vẫn Quản lý bảng; các tài khoản khác vẫn Chưa cấp quyền, bảng không gắn team. Không thay quyền các bảng công việc khác.
 - Việc xóa tệp tạm được thực hiện trong bản sửa đã build; lần nghiệm thu thiết bị này xác nhận đóng giao diện xem tệp và chặn nội dung thẻ, không kiểm tra trực tiếp filesystem riêng của iPhone.
 - Sau khi khôi phục quyền, người dùng xác nhận xem lại được tệp; Device Hub cũng hiển thị Quick Look với đúng nội dung QA khi app được mở lại.
+
+## Kết quả hoàn tất đợt kiểm tra thiết bị thật — 27/10/2026
+
+Người dùng đưa Kairetic về nền; Device Hub hiển thị Home của iPhone trước khi web sửa mô tả thẻ 30 thành `QA-BACKGROUND-LIVE-06: Da cap nhat tu web khi app chay nen.`. Web báo đã lưu. Người dùng mở lại app, đóng màn xem tệp để về thẻ, không kéo tải lại; Device Hub hiển thị đúng mô tả mới và giữ phiên đăng nhập. Đây là nghiệm thu quay lại từ nền trong lần thử này, không phải kiểm tra app tự đồng bộ khi bị hệ điều hành đình chỉ hoặc đã tắt hẳn.
+
+| Tình huống | Kết quả trên iPhone 16 Pro Max / iOS 27.0.1 |
+| --- | --- |
+| Web sửa khi thẻ đang mở | Mô tả mới tự hiện; đã quan sát trực tiếp |
+| iPhone sửa rồi lưu | Web đọc lại đúng mô tả; thao tác trên điện thoại do người dùng thực hiện |
+| Lưu khi mất mạng rồi thử lại | Người dùng báo lỗi mạng, bật Wi-Fi và lưu thành công; nội dung mới khớp cả web và iPhone |
+| Thu hồi quyền khi đang xem tệp | Quick Look tự đóng, nội dung thẻ bị chặn; đã quan sát trực tiếp |
+| Cấp lại quyền cũ | Thẻ tự tải lại; người dùng mở được tệp lần nữa, có quan sát Quick Look |
+| Đưa về nền, web sửa, mở lại | Mô tả mới xuất hiện, không kéo tải lại, giữ đăng nhập |
+| Xcode khởi động lại app sau cài | Tổng quan khôi phục phiên công ty; đã quan sát trực tiếp |
+
+Ba lỗi được sửa và cài lên thiết bị trong đợt này: đăng ký realtime bị màn trước hủy, tệp xem trước chưa đóng khi bị thu hồi quyền, hộp thoại lỗi tải tự động che thao tác sau khi quay về app lúc mất mạng. Mã nguồn đã được đẩy lên nhánh hiện tại. Không có thay đổi backend hoặc triển khai web mới trong đợt sửa iOS này. Quyền bảng QA đã khôi phục như trước thử nghiệm, các bảng công việc khác giữ nguyên.
+
+Giới hạn nghiệm thu: chỉ một thiết bị thật và dữ liệu QA, không phải mọi chức năng hay mọi tình huống mạng. Số request/không tự phát lại trước lần lưu lại được đối chiếu ở demo/proxy, chưa đo trực tiếp trên thiết bị thật. Tệp xóa khỏi thư mục tạm được bảo vệ bằng code nhưng không kiểm tra filesystem riêng của iPhone. APNs khi app đóng, mạng chập chờn sau khi máy chủ đã nhận ghi và phân phối nội bộ nhiều thiết bị vẫn cần đợt riêng.
