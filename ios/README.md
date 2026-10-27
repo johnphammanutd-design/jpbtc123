@@ -327,3 +327,7 @@ Do điều khiển iPhone thật qua Device Hub/Phản chiếu iPhone chưa ho�
 Phần còn lại trên thiết bị thật: lặp lại đồng bộ hai chiều, lỗi lưu khi đổi mạng, thu hồi/khôi phục quyền trong lúc xem tệp và chuyển nền. Không kết luận các tình huống này đã qua trên iPhone thật từ kết quả Simulator.
 
 Sau khi người dùng mở khóa thiết bị, Xcode đã cài và chạy bản sửa `289bd9e` bằng scheme **Kairetic** trên **iPhone 16 Pro Max / iOS 27.0.1**. Device Hub hiển thị Tổng quan với phiên công ty được khôi phục, không cần đăng nhập lại. Thử chuyển Task từ Mac vẫn không được điện thoại nhận; phần nghiệm thu tương tác tiếp tục cần thao tác trực tiếp trên iPhone. Lần cài này chưa chứng minh các tình huống ổn định còn lại đã qua trên thiết bị thật.
+
+Người dùng sau đó mở trực tiếp thẻ QA số 30 trên iPhone. Web lưu mô tả `QA-WEB-LIVE-03: Da cap nhat tu web khi the dang mo tren iPhone.`; Device Hub cho thấy chính mô tả mới tự xuất hiện khi màn thẻ vẫn mở, không kéo để tải lại hay khởi động lại app. Đã xác nhận **web → iPhone thật** cho lần cập nhật này.
+
+Ở chiều ngược lại, người dùng sửa mô tả và bấm Lưu trực tiếp trên iPhone. Đóng/mở lại thẻ 30 ở web đọc được `QA-WEB-LIVE-04: Da luu tu iphone`, khớp nội dung hiển thị trên điện thoại. Đã xác nhận **iPhone thật → web** cho lần lưu này; chỉ mô tả thẻ QA số 30 được sửa.
